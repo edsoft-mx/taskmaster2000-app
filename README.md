@@ -2,6 +2,10 @@
 
 Kanban Boards + Pomodoro + Time Spending Police
 
+## Platform
+
+So far, built as an electron app, some pages are being opened on separate windows, so that functionality is missing if built as a web app
+
 ## Install the dependencies
 ```bash
 yarn
@@ -34,7 +38,7 @@ npm run format
 
 ### Build the app for production
 ```bash
-quasar build
+quasar build -m electron
 ```
 
 ### Customize the configuration
