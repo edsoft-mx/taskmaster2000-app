@@ -1,1 +1,174 @@
 /* app global css */
+h1.boardTitle {
+  font-size: 2rem;
+  margin-bottom: 12px;
+  margin-top: 12px;
+  margin-left: 8px;
+  margin-right: 8px;
+  line-height: normal;
+}
+
+div.stateColumn{
+  background-color: #f0f0f0;
+  border-radius: 0.5rem;
+  padding: 4px;
+  margin-left: 8px;
+  margin-right: 8px;
+  margin-bottom: 4px;
+  margin-top: 4px;
+  color:#707070;
+}
+
+div.stateTitle{
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+div.newTask:hover{
+  background-color: white;
+  color: black;
+}
+
+div.superTask{
+  background-color: gainsboro;
+  padding: 12px;
+  position: relative;
+}
+
+div.superTask span.state{
+  background-color: lightcyan;
+  padding: 4px;
+}
+
+div.newTask {
+  color: black;
+  border-radius: 6px;
+  min-height: 60px;
+  padding: 4px;
+  margin-bottom: 4px;
+  margin-top: 4px;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+div.task {
+  background-color: white;
+  border-radius: 6px;
+  min-height: 60px;
+  padding: 4px;
+  margin-bottom: 4px;
+  margin-top: 4px;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+div.selectedTask {
+  box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75)
+}
+
+.summary h3{
+  font-size: 14pt;
+  padding: 0px;
+  line-height: 1.2;
+  margin-top: 8px;
+}
+
+.summary h4{
+  font-size: 12pt;
+  padding: 0px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+.summary p{
+  margin-bottom: 4px;
+}
+
+.summary img{
+  vertical-align: middle;
+}
+
+.summary code{
+  background-color: #d0d0d0;
+}
+
+button.buttonTaskAction {
+  position: absolute;
+  padding:0;
+  margin:0;
+  width: 22px;
+  height: 22px;
+  color: #707070;
+}
+
+button.buttonTaskAction2 {
+  padding:0;
+  margin:0;
+  width: 22px;
+  height: 22px;
+  color: #707070;
+}
+
+@media (prefers-color-scheme: dark) {
+  div.stateColumn {
+    background-color: #1e1f22;
+    border-radius: 0.5rem;
+    padding: 4px;
+    margin-left: 8px;
+    margin-right: 8px;
+    margin-bottom: 4px;
+    margin-top: 4px;
+    color: white;
+  }
+
+  div.task {
+    background-color: #2b2d30;
+    color: white;
+    border-radius: 6px;
+    min-height: 60px;
+    padding: 4px;
+    margin-bottom: 4px;
+    margin-top: 4px;
+    margin-left: 2px;
+    margin-right: 2px;
+  }
+
+  div.superTask {
+    background-color: #3b3c41;
+    padding: 12px;
+    position: relative;
+  }
+
+  div.superTask span.state {
+    background-color: lightcyan;
+    padding: 4px;
+  }
+
+  div.newTask {
+    color: white;
+  }
+
+  div.newTask a {
+    color: white;
+  }
+
+  div.newTask:hover {
+    background-color: #2b2d30;
+    color: white;
+  }
+
+  div.superTask span.state {
+    background-color: #62a6a6;
+    color: white;
+    padding: 4px;
+  }
+
+  div.selectedTask {
+    box-shadow: 10px 8px 8px rgba(76, 249, 251, 0.75)
+  }
+
+  .summary code {
+    background-color: #707070;
+  }
+}

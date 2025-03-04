@@ -558,9 +558,11 @@ div.dowHeader{
 import {ref, reactive, provide, watch, onBeforeMount, onMounted, computed, triggerRef} from 'vue'
 import { callApi, callApiLogin, callLogout, Timeline  } from 'src/common'
 import { useSessionStore } from 'stores/user_session';
+import { useUISessionStore } from 'stores/ui_state';
 import { useRouter } from "vue-router";
 const router = useRouter();
 const store = useSessionStore()
+const uiStore = useUISessionStore()
 
 defineOptions({
   name: 'MainLayout'
@@ -614,6 +616,11 @@ let selectedTask = ref()
 let timelineObject = ref(null)
 let timelineObjectHor = ref(null)
 let tentativePeriod = null
+let previousUIState = {
+  selectedTask: {},
+  pomodoroSession: 0,
+  pomodoroIndex: 0,
+}
 
 provide('globalSelectedTask', selectedTask)
 
@@ -1019,6 +1026,26 @@ async function addTag2SelectedTask(tag){
   selectedTask.value.idTags.push(tag.idTag)
 }
 
+async function pomodoroOnTimerClick(task) {
+  // ...
+  let workingToday2 = await callApi("GET", 'user/spent_time/today')
+  setWorkingToday(workingToday2)
+}
+
+uiStore.$subscribe(async (mutation, state) => {
+  if (state.selectedTask != previousUIState.selectedTask){
+
+  }
+  if (state.pomodoroSession != previousUIState.pomodoroSession){
+    let workingToday2 = await callApi("GET", 'user/spent_time/today')
+    setWorkingToday(workingToday2)
+  }
+  if (state.pomodoroIndex != previousUIState.pomodoroIndex){
+
+  }
+
+})
+
 async function removeTagFromSelectedTask(tag){
   if (selectedTask.value==null){
     return
@@ -1026,12 +1053,6 @@ async function removeTagFromSelectedTask(tag){
   await callApi('DELETE', `/user/tasks/${selectedTask.value.idTask}/tags/`, {tag: tag.idTag})
   const index = selectedTask.value.idTags.indexOf(tag.idTag);
   selectedTask.value.idTags = selectedTask.value.idTags.splice(index, 1)
-}
-
-async function pomodoroOnTimerClick(task) {
-  // ...
-  let workingToday2 = await callApi("GET", 'user/spent_time/today')
-  setWorkingToday(workingToday2)
 }
 
 async function pomodoroMenuClick(task) {

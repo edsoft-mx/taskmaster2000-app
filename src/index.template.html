@@ -40,8 +40,9 @@
   }
 
   function scrollToEpic(idEpic){
+    console.log(`scrollToEpic(${idEpic})`)
     let extraScroll=-40
-    let targetElement = `epic-detail-${idEpic}`
+    let targetElement = `epic-container-${idEpic}`
     let altTargetElement = `epic-card-${idEpic}`
     let el=document.getElementById(targetElement)
     if (el==null) {

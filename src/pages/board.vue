@@ -1,12 +1,13 @@
 <script setup>
-
 defineOptions({
   name: 'tm-board'
 });
-import {ref, reactive, defineProps, watch, inject, computed} from 'vue'
+import {ref, reactive, defineProps, watch, inject, computed, onMounted} from 'vue'
 import { callApi } from 'src/common'
-import TMTask from "components/tmTask.vue";
-import TMEpic from "components/tmEpic.vue";
+import { allStates, projectMap, BoardState, BoardProject, BoardEpic, BoardTask, resetData } from 'src/commonObjects'
+import TMKanban from "components/tmKanban.vue";
+import TMTaskContainer from 'components/tmTaskContainer.vue'
+import TMEpicContainer from 'components/tmEpicContainer.vue'
 
 const props = defineProps({
   idBoard: Number,
@@ -36,16 +37,16 @@ const boardData = reactive({
   tasks: [],
   projects: [],
   epics: [],
-  projectsMap: new Map(),
-  stateMap: new Map(),
-  stateMapEpics: new Map(),
-  hasSubTasks: false,
-  tasksWithSubTasks: [],
   stateDisplayLimit: new Map(),
-  allTasksMap: new Map(),
+  // projectsMap: new Map(),
+  // stateMap: new Map(),
+  // stateMapEpics: new Map(),
+  // hasSubTasks: false,
+  // tasksWithSubTasks: [],
+  // allTasksMap: new Map(),
   task2domMap: new Map(),
   epic2domMap: new Map(),
-  epicTasksMap: new Map(),
+  //epicTasksMap: new Map(),
 })
 
 const expandedEpics = computed(() => boardData.epics.filter(t => t.expanded))
@@ -83,55 +84,75 @@ function updateActivityDate(map, kind, date){
 
 
 async function getData(){
+  boardData.tasks = []
+  boardData.epics = []
+  boardData.states= []
+  boardData.projects = []
+  resetData()
+  let taskObjects= []
+  let epicObjects= []
+  let statesObjects= []
+  let projectObjects= []
   currentBoardId.value = props.idBoard
   let apiCallBoard = callApi('GET', `user/boards/${props.idBoard}`)
   let apiCallBoardTasks = callApi('GET', `user/boards/${props.idBoard}/tasks`)
   let apiCallBoardEpics = callApi('GET', `user/boards/${props.idBoard}/epics`)
   let result = await apiCallBoard
   boardData.name= result.name
-  boardData.states = result.states
-  boardData.hasSubTasks = result.hasSubTasks
+  for (let state of result.states) {
+    statesObjects.push(new BoardState(state))
+  }
+  for (let project of result.projects) {
+    projectObjects.push(new BoardProject(project))
+  }
+  //boardData.states = result.states
+  //boardData.hasSubTasks = result.hasSubTasks
   boardData.stateDisplayLimit.clear()
-  boardData.projectsMap.clear()
-  boardData.stateMap.clear()
-  boardData.tasksWithSubTasks = []
-  boardData.tasks = []
-  boardData.allTasksMap.clear()
+  // boardData.projectsMap.clear()
+  // boardData.stateMap.clear()
+  // boardData.tasksWithSubTasks = []
+
+  //boardData.allTasksMap.clear()
   headerTitle.value= boardData.name
   headerIconShow.value= false
-  for (let state of boardData.states){
-    boardData.stateMap.set(state.state, [])
-    boardData.stateMapEpics.set(state.state, [])
-    boardData.stateDisplayLimit.set(state.state, 7)
-  }
-  boardData.projects = result.projects
-  for (let prj of boardData.projects){
-    boardData.projectsMap.set(prj.idProject, prj)
-  }
+  // for (let state of boardData.states){
+  //   boardData.stateMap.set(state.state, [])
+  //   boardData.stateMapEpics.set(state.state, [])
+  //   boardData.stateDisplayLimit.set(state.state, 7)
+  // }
+  // for (let prj of result.projects) {
+  //   boardData.projects.push(new BoardProject(prj))
+  // }
+  // boardData.projects = result.projects
+  // for (let prj of boardData.projects){
+  //   boardData.projectsMap.set(prj.idProject, prj)
+  // }
 
   selectedTask.value = null
   prevSelectedTask.value = null
   globalSelectedTask.value = null
 
+  //boardData.epicTasksMap.clear()
   boardData.epic2domMap.clear()
-  boardData.epicTasksMap.clear()
   let epics = await apiCallBoardEpics
   for (let epic of epics){
-    let state_list = boardData.stateMapEpics.get(epic.state)
-    epic.taskType = 'epic'
-    state_list.push(epic)
+    let epicObject= new BoardEpic(epic)
+    epicObjects.push(epicObject)
+    //let state_list = boardData.stateMapEpics.get(epic.state)
+    //epic.taskType = 'epic'
+    //state_list.push(epic)
+    //boardData.epicTasksMap.set(epic.idEpic, [])
     boardData.epic2domMap.set(epic.idEpic, `epic-card-${epic.idEpic}`)
-    boardData.epicTasksMap.set(epic.idEpic, [])
   }
-  boardData.epics= epics
+  //boardData.epics= epics
 
   result = await apiCallBoardTasks
-  boardData.tasks = []
-  boardData.tasksWithSubTasks = []
+  //boardData.tasksWithSubTasks = []
   boardData.task2domMap.clear()
   let activityMap = new Map()
   console.log('new activityMap')
   for (let task of result.tasks){
+    let taskObject = new BoardTask(task)
     if (task.dueDate){
       // console.log(`Set ${task.key}.dueDate = ${task.dueDate}`)
       updateActivityDate(activityMap, 'due', task.dueDate)
@@ -140,22 +161,22 @@ async function getData(){
       // console.log(`Set ${task.key}.estimatedStartDate = ${task.estimatedStartDate}`)
       updateActivityDate(activityMap, 'start', task.estimatedStartDate)
     }
-    let state_list = boardData.stateMap.get(task.state)
-    state_list.push(task)
-    boardData.tasks.push(task)
-    boardData.allTasksMap.set(`task-card-${task.idTask}`, task)
+    // let state_list = boardData.stateMap.get(task.state)
+    // state_list.push(task)
+    taskObjects.push(taskObject)
+    //boardData.allTasksMap.set(`task-card-${task.idTask}`, task)
     boardData.task2domMap.set(task.idTask, `task-card-${task.idTask}`)
-    if (task.idEpic){
-      // console.log('A Task with an Epic!')
-      // console.log(task)
-      let epicTaskList = boardData.epicTasksMap.get(task.idEpic)
-      epicTaskList.push(task)
-    }
+    // if (task.idEpic){
+    //   // console.log('A Task with an Epic!')
+    //   // console.log(task)
+    //   let epicTaskList = boardData.epicTasksMap.get(task.idEpic)
+    //   epicTaskList.push(task)
+    // }
     if (task.hasSubTasks){
-      boardData.tasksWithSubTasks.push(task)
+      //boardData.tasksWithSubTasks.push(task)
       for (let subTask of task.subTasks){
-        boardData.allTasksMap.set(`subtask-card-${task.idTask}-${subTask.idTask}`, subTask)
-        boardData.task2domMap.set(subTask.idTask, `subtask-card-${task.idTask}-${subTask.idTask}`)
+        //boardData.allTasksMap.set(`subtask-card-${task.idTask}-${subTask.idTask}`, subTask)
+        boardData.task2domMap.set(subTask.idTask, `task-card-${subTask.idTask}`)
         if (subTask.dueDate){
           // console.log(`Set ${subTask.key}.dueDate = ${subTask.dueDate}`)
           updateActivityDate(activityMap, 'due', subTask.dueDate)
@@ -167,13 +188,17 @@ async function getData(){
       }
     }
   }
-
   daysWithActivity.value = activityMap
   leftDrawerOpen.value= false
+  console.log(`allStates.length = ${allStates.length}`)
+  console.log(`Epics.all.length = ${BoardEpic.allEpics.length}`)
+  console.log(`Tasks.root.length= ${BoardTask.rootTasks.length}`)
+  console.log(allStates)
+  boardData.states= statesObjects
+  boardData.projects = projectObjects
+  boardData.epics = epicObjects
+  boardData.tasks = BoardTask.rootTasks
 }
-getData()
-
-
 
 function styleForEpicTab(epic){
   let prj = boardData.projectsMap.get(epic.idProject);
@@ -182,10 +207,9 @@ function styleForEpicTab(epic){
 
 function styleForSuperTask(task){
   let style = ''
-  let prj = boardData.projectsMap.get(task.idProject);
   if (task === selectedTask.value && task.expanded && task.hasSubTasks){
     let borderWidth = "4px"
-    style = `border: solid ${borderWidth} ${prj.color};`
+    style = `border: solid ${borderWidth} ${task.color};`
   }
   return style
 }
@@ -406,7 +430,7 @@ function showTask(task, openRightDrawer=true){
   globalSelectedTask.value = selectedTask.value
   addClassToTask(task, 'selectedTask')
   prevSelectedTask.value= task
-  let project = boardData.projectsMap.get(task.idProject)
+  let project = projectMap.get(task.idProject)
   rightDrawerHeader.value=`<h3><img class="taskIcon" src="${task.taskType}.png">
     <strong>${task.key}</strong> | ${project.name}<br>${task.title}
     </h3>`
@@ -549,7 +573,9 @@ async function toggleTask(task){
 }
 
 async function toggleEpic(epic){
+  let idx = boardData.epics.indexOf(epic)
   epic.expanded = !epic.expanded
+  //boardData.epics[idx].expanded = !boardData.epics[epic].expanded
   let data = {expanded: epic.expanded, idBoard: props.idBoard}
   await callApi("POST", `user/epics/${epic.idEpic}`, data)
   if (epic.expanded){
@@ -559,26 +585,26 @@ async function toggleEpic(epic){
   }
 }
 
-async function toggleSuperTaskInfo(task){
-  if (!task.showDetail){
-    task.showDetail= true
-  }
-  else {
-    task.showDetail = false
-  }
-  showTask(task)
-}
+// async function toggleSuperTaskInfo(task){
+//   if (!task.showDetail){
+//     task.showDetail= true
+//   }
+//   else {
+//     task.showDetail = false
+//   }
+//   showTask(task)
+// }
 
-function superTaskDetail(task){
-  let result = ''
-  if (task.description){
-    result += `## Description:\n${task.description}\n`
-  }
-  if (task.notes){
-    result += `## Notes:\n${task.notes}\n`
-  }
-  return result
-}
+// function superTaskDetail(task){
+//   let result = ''
+//   if (task.description){
+//     result += `## Description:\n${task.description}\n`
+//   }
+//   if (task.notes){
+//     result += `## Notes:\n${task.notes}\n`
+//   }
+//   return result
+// }
 
 function dragTask(event, task, parentTask){
   //let taskUI = document.getElementById(event.target.id)
@@ -835,354 +861,33 @@ window.electronAPI.onRefresh(async() => {
   console.log(window.scrollY)
 })
 
+onMounted(()=>{
+  console.log('mounted')
+  getData()
+})
+
 </script>
 
 <template>
   <div id="mainContainer" style="position: relative;" >
-    <div class="row" style="min-height: 500px; ">
-      <div v-for="state in boardData.states" :key="state.state" :class="`col stateColumn state_${state.state.replace(' ','_')}`"
-           @dragover="dragOverTask($event)" @dragleave="dragLeaveTask($event)" @drop="dropTask($event)"
-           :id="`main_${state.state.replace(' ','_')}`"
-      >
-        <div class="stateTitle">
-          {{ state.state }} <span><small>{{ getTasks(state).length }} </small></span>
-        </div>
-        <div :class="`state_${state.state}`" :id="getStateId(state)">
-          <div v-for="(task, taskIndex) in getTasks(state)" :key="task.idTask">
-
-            <TMEpic :id="`epic-card-${task.idEpic}`" :board-data="boardData" :epic="task"  v-if="task.idEpic && !task.idTask"
-                    @toggle-detail="toggleEpic(task)" @show-epic="showEpic(epic)" @edit-epic="editEpic(task)" />
-            <TMTask :id="`task-card-${task.idTask}`"
-                    :task="task" @show-task="showTask(task)" @edit-task="editTask(task)"
-                    @toggle-detail="toggleTask(task)"
-                     v-if="taskIndex < boardData.stateDisplayLimit.get(state.state) && task.idTask" />
-          </div>
-          <div class="newTask" v-if="state.start">
-            <a href=":newTask" @click="newTask(state)" @click.prevent>+ Add a new task</a>
-          </div>
-          <div class="newTask" v-if="state.start">
-            <a href=":newEpic" @click="newEpic(state)" @click.prevent>+ Add a new epic</a>
-          </div>
-          <div class="newTask" v-if="getTasks(state).length > 7">
-            Show...
-            <span v-if="boardData.stateDisplayLimit.get(state.state) < getTasks(state).length ">
-              <a href="#more" @click="showMore(state)" @click.prevent>More</a>
-            </span>
-            <span v-if="boardData.stateDisplayLimit.get(state.state) < getTasks(state).length ">
-              &nbsp;|&nbsp;
-              <a href="#more" @click="showAll(state)" @click.prevent>All</a>
-            </span>
-            <span v-if="boardData.stateDisplayLimit.get(state.state) > 7">
-              &nbsp;|&nbsp;
-              <a href="#less" @click="showLess(state)" @click.prevent>Less</a>
-            </span>
-          </div>
-        </div>
+    <TMKanban id="rootKanban" :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
+              @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask"/>
+    <div v-for="epic in boardData.epics" :key="epic.idEpic" >
+      <div :style="styleForSuperTask(epic)" v-if="epic.expanded">
+        <TMEpicContainer :states="boardData.states" :epic="epic" :id="`epic-container-${epic.idEpic}`"
+                         @toggle-detail="toggleTask"
+                         @toggle-epic="toggleEpic" @select="showTask"/>
       </div>
     </div>
-
-    <div v-for="epic in expandedEpics" :key="epic.idEpic" >
-      <div :style="styleForEpic(epic)" class="superTask" :id="`epic-detail-${epic.idEpic}`">
-        <img src="epic.png" style="width:16px; height: 16px"/> &nbsp;
-        <button  @click="toggleEpic(epic)" :title="epic.expanded ? 'Hide Taks':'Show Tasks'" class="buttonTaskAction2">
-          <span class="material-icons-outlined material-icons" v-if="!epic.expanded">expand_more</span>
-          <span class="material-icons-outlined material-icons" v-if="epic.expanded">expand_less</span>
-        </button>
-        &nbsp;
-        <b>{{ epic.key }}</b> - {{ epic.epic }} <span class="state">{{ epic.state }}</span>
-        &nbsp;
-        <button @click="editEpic(epic)" type="button" title="Edit epic" class="buttonTaskAction2" >
-          <span class="material-icons-outlined material-icons">edit</span>
-        </button>
-        <div v-if="epic.showDetail" class="summary">
-          <VueShowdown :markdown="epicDetail(epic)" flavor="github" :options="{ emoji:true, headerLevelStart:3,
-                tasklists: true, openLinksInNewWindow: true, moreStyling: true }" />
-        </div>
-        <div class="row">
-          <div v-for="state in boardData.states" :key="state.state" :class="`col stateColumn state_${state.state}`"
-               @dragover="dragOverTask($event)" @dragleave="dragLeaveTask($event)" @drop="dropTask($event)"
-               :id="`epic_${epic.idEpic}_${state.state.replace(' ','_')}`"
-          >
-            <div class="stateTitle">
-              {{ state.state }} <span><small></small></span>
-              <div>
-                <div v-for="task in getEpicTasks(state, epic)" :key="task.idTask" class="task" :style="styleForTask(task)"
-                     :id="`task-card-${task.idTask}`"
-                     @click="showTask(task)"
-                     onmouseover="this.style.borderStyle='dotted'" :onmouseout="getTaskMouseOutStyle(task)" style="position: relative;"
-                     draggable="true" @dragstart="dragTask($event, task, task)"
-                     @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
-                >
-                  <span><b>{{task.key }}</b><br> </span>
-                  <span style="padding-right: 8px; ">
-                        {{ task.title }}
-                    </span>
-                  <!--fab icon="edit" color="teal" type="button" style="position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px;" anchor="end"-->
-                  <img v-if="task.isExternal" :src="task.icon" style="position: absolute; right: 4px; top: 4px; width:16px; height: 16px"/>
-                  <img :src="`${task.taskType}.png`" style="position: absolute; left: 4px; bottom: 6px; width:16px; height: 16px"/>
-                  <img :src="`${task.priority}.svg`" style="position: absolute; left: 22px; bottom: 6px; width:16px; height: 16px"/>
-
-                  <button @click="clickPomodoroTimer(task)" type="button" title="Start/Stop Pomodoro Timer" class="buttonTaskAction" style="bottom: 4px; right: 28px">
-                    <span class="material-icons-outlined material-icons">timer</span>
-                  </button>
-                  <button @click="editTask(task)" type="button" title="Edit task" class="buttonTaskAction" style="bottom: 4px; right: 4px">
-                    <span class="material-icons-outlined material-icons">edit</span>
-                  </button>
-                  <button v-if="task.hasSubTasks"  @click="toggleTask(task)" :title="task.expanded ? 'Hide Subtasks':'Show Subtasks'"
-                          class="buttonTaskAction" style="right: 52px; bottom: 4px;" >
-                    <span class="material-icons-outlined material-icons" v-if="!task.expanded">expand_more</span>
-                    <span class="material-icons-outlined material-icons" v-if="task.expanded">expand_less</span>
-                  </button>
-                </div>
-                <div class="newTask" v-if="state.start">
-                  <a href=":newTask" @click="newTask(state, epic)" @click.prevent>+ Add a new subtask</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-for="task in boardData.tasksWithSubTasks" :key="task.idTask">
-      <div class="superTask" v-if="task.expanded" :id="`super-task-${task.idTask}`" :style="styleForSuperTask(task)">
-        <button @click="toggleTask(task)" :title="task.expanded ? 'Hide Subtasks':'Show Subtasks'"
-                class="buttonTaskAction2" >
-          <span class="material-icons-outlined material-icons" v-if="!task.expanded">expand_more</span>
-          <span class="material-icons-outlined material-icons" v-if="task.expanded">expand_less</span>
-        </button>
-        &nbsp;
-        <b>{{ task.key }}</b> - {{ task.title }} <span class="state">{{ task.state }}</span>
-        &nbsp;
-        <button @click="toggleSuperTaskInfo(task)" title="Show description" class="buttonTaskAction" style="position: relative;">
-          <span class="material-icons-outlined material-icons">info</span>
-        </button>
-        &nbsp;
-        <button @click="editTask(task)" type="button" title="Edit task" class="buttonTaskAction" style="position: relative">
-          <span class="material-icons-outlined material-icons">edit</span>
-        </button>
-        <div v-if="task.showDetail" class="summary">
-            <VueShowdown :markdown="superTaskDetail(task)" flavor="github" :options="{ emoji:true, headerLevelStart:3,
-              tasklists: true, openLinksInNewWindow: true, moreStyling: true }" />
-        </div>
-        <div class="row">
-          <div v-for="state in boardData.states" :key="state.state" :class="`col stateColumn state_${state.state}`"
-               @dragover="dragOverTask($event)" @dragleave="dragLeaveTask($event)" @drop="dropTask($event)"
-               :id="`task_${task.idTask}_${state.state.replace(' ','_')}`"
-          >
-            <div class="stateTitle">
-              {{ state.state }} <span><small></small></span>
-              <div>
-                <div v-for="subTask in getSubTasks(task, state)" :key="subTask.idTask" class="task" :style="styleForTask(subTask)"
-                     :id="`subtask-card-${task.idTask}-${subTask.idTask}`"
-                     @click="showTask(subTask)"
-                     onmouseover="this.style.borderStyle='dotted'" :onmouseout="getTaskMouseOutStyle(subTask)" style="position: relative;"
-                     draggable="true" @dragstart="dragTask($event, subTask, task)"
-                     @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
-                >
-                  <span><b>{{subTask.key }}</b><br> </span>
-                  <span style="padding-right: 8px; ">
-                      {{ subTask.title }}
-                  </span>
-                  <!--fab icon="edit" color="teal" type="button" style="position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px;" anchor="end"-->
-                  <img v-if="subTask.isExternal" :src="subTask.icon" style="position: absolute; right: 4px; top: 4px; width:16px; height: 16px"/>
-                  <img :src="`${subTask.taskType}.png`" style="position: absolute; left: 4px; bottom: 6px; width:16px; height: 16px"/>
-                  <img :src="`${subTask.priority}.svg`" style="position: absolute; left: 22px; bottom: 6px; width:16px; height: 16px"/>
-
-                  <button @click="clickPomodoroTimer(subTask)" type="button" title="Start/Stop Pomodoro Timer" class="buttonTaskAction" style="bottom: 4px; right: 28px">
-                    <span class="material-icons-outlined material-icons">timer</span>
-                  </button>
-                  <button @click="editTask(subTask)" type="button" title="Edit task" class="buttonTaskAction" style="bottom: 4px; right: 4px">
-                    <span class="material-icons-outlined material-icons">edit</span>
-                  </button>
-                </div>
-                <div class="newTask" v-if="state.start">
-                  <a href=":newTask" @click="newTask(state, task)" @click.prevent>+ Add a new subtask</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div v-for="task in boardData.tasks" :key="task.idTask" >
+      <div :style="styleForSuperTask(task)" v-if="task.expanded && task.hasSubTasks">
+        <TMTaskContainer :states="boardData.states" :task="task" :id="`super-task-${task.idTask}`"
+                         @toggle-detail="toggleTask" @select="showTask" />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-    h1.boardTitle {
-      font-size: 2rem;
-      margin-bottom: 12px;
-      margin-top: 12px;
-      margin-left: 8px;
-      margin-right: 8px;
-      line-height: normal;
-    }
-
-    div.stateColumn{
-      background-color: #f0f0f0;
-      border-radius: 0.5rem;
-      padding: 4px;
-      margin-left: 8px;
-      margin-right: 8px;
-      margin-bottom: 4px;
-      margin-top: 4px;
-      color:#707070;
-    }
-
-    div.stateTitle{
-      font-weight: bold;
-      margin-bottom: 12px;
-    }
-
-    div.newTask:hover{
-      background-color: white;
-      color: black;
-    }
-
-    div.superTask{
-      background-color: gainsboro;
-      padding: 12px;
-      position: relative;
-    }
-
-    div.superTask span.state{
-      background-color: lightcyan;
-      padding: 4px;
-    }
-
-    div.newTask {
-      color: black;
-      border-radius: 6px;
-      min-height: 60px;
-      padding: 4px;
-      margin-bottom: 4px;
-      margin-top: 4px;
-      margin-left: 2px;
-      margin-right: 2px;
-    }
-
-    div.task {
-      background-color: white;
-      border-radius: 6px;
-      min-height: 60px;
-      padding: 4px;
-      margin-bottom: 4px;
-      margin-top: 4px;
-      margin-left: 2px;
-      margin-right: 2px;
-    }
-
-    div.selectedTask {
-      box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75)
-    }
-
-    .summary h3{
-      font-size: 14pt;
-      padding: 0px;
-      line-height: 1.2;
-      margin-top: 8px;
-    }
-
-    .summary h4{
-      font-size: 12pt;
-      padding: 0px;
-      margin-top: 8px;
-      margin-bottom: 4px;
-      font-weight: bold;
-    }
-
-    .summary p{
-      margin-bottom: 4px;
-    }
-
-    .summary img{
-      vertical-align: middle;
-    }
-
-    .summary code{
-      background-color: #d0d0d0;
-    }
-
-    button.buttonTaskAction {
-      position: absolute;
-      padding:0;
-      margin:0;
-      width: 22px;
-      height: 22px;
-      color: #707070;
-    }
-
-    button.buttonTaskAction2 {
-      padding:0;
-      margin:0;
-      width: 22px;
-      height: 22px;
-      color: #707070;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      div.stateColumn {
-        background-color: #1e1f22;
-        border-radius: 0.5rem;
-        padding: 4px;
-        margin-left: 8px;
-        margin-right: 8px;
-        margin-bottom: 4px;
-        margin-top: 4px;
-        color: white;
-      }
-
-      div.task {
-        background-color: #2b2d30;
-        color: white;
-        border-radius: 6px;
-        min-height: 60px;
-        padding: 4px;
-        margin-bottom: 4px;
-        margin-top: 4px;
-        margin-left: 2px;
-        margin-right: 2px;
-      }
-
-      div.superTask{
-        background-color: #3b3c41;
-        padding: 12px;
-        position: relative;
-      }
-
-      div.superTask span.state{
-        background-color: lightcyan;
-        padding: 4px;
-      }
-
-      div.newTask{
-        color: white;
-      }
-
-      div.newTask a{
-        color: white;
-      }
-
-      div.newTask:hover{
-        background-color: #2b2d30;
-        color: white;
-      }
-
-      div.superTask span.state{
-        background-color: #62a6a6;
-        color: white;
-        padding: 4px;
-      }
-
-      div.selectedTask {
-        box-shadow: 10px 8px 8px rgba(76, 249, 251, 0.75)
-      }
-
-      .summary code{
-        background-color: #707070;
-      }
-
-    }
-
 </style>
 
