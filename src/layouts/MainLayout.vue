@@ -1033,17 +1033,10 @@ async function pomodoroOnTimerClick(task) {
 }
 
 uiStore.$subscribe(async (mutation, state) => {
-  if (state.selectedTask != previousUIState.selectedTask){
-
-  }
   if (state.pomodoroSession != previousUIState.pomodoroSession){
     let workingToday2 = await callApi("GET", 'user/spent_time/today')
     setWorkingToday(workingToday2)
   }
-  if (state.pomodoroIndex != previousUIState.pomodoroIndex){
-
-  }
-
 })
 
 async function removeTagFromSelectedTask(tag){

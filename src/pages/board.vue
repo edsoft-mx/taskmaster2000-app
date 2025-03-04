@@ -4,10 +4,20 @@ defineOptions({
 });
 import {ref, reactive, defineProps, watch, inject, computed, onMounted} from 'vue'
 import { callApi } from 'src/common'
-import { allStates, projectMap, BoardState, BoardProject, BoardEpic, BoardTask, resetData } from 'src/commonObjects'
+import {
+  allStates,
+  projectMap,
+  BoardState,
+  BoardProject,
+  BoardEpic,
+  BoardTask,
+  resetData,
+  allTaskMap
+} from 'src/commonObjects'
 import TMKanban from "components/tmKanban.vue";
 import TMTaskContainer from 'components/tmTaskContainer.vue'
 import TMEpicContainer from 'components/tmEpicContainer.vue'
+import { useUISessionStore } from 'stores/ui_state';
 
 const props = defineProps({
   idBoard: Number,
@@ -15,6 +25,14 @@ const props = defineProps({
   //showSearchResult: String,
   executeOp: Object,
 })
+
+const uiStore = useUISessionStore()
+let previousUIStoreState = {
+  selectedTask: 0,
+  pomodoroSession: 0,
+  pomodoroIndex: 0,
+  task2UpdateState: {id: 0, state: '?'}
+}
 
 const currentBoardId = inject('currentBoardId')
 const leftDrawerOpen = inject('leftDrawerOpen')
@@ -30,6 +48,7 @@ const clickPomodoroTimer = inject('clickPomodoroTimer')
 const globalSelectedTask = inject('globalSelectedTask')
 const daysWithActivity = inject('daysWithActivity')
 
+const updater = ref(new Map([['root', 'root_0']]))
 
 const boardData = reactive({
   name: "",
@@ -37,7 +56,7 @@ const boardData = reactive({
   tasks: [],
   projects: [],
   epics: [],
-  stateDisplayLimit: new Map(),
+  //stateDisplayLimit: new Map(),
   // projectsMap: new Map(),
   // stateMap: new Map(),
   // stateMapEpics: new Map(),
@@ -107,7 +126,7 @@ async function getData(){
   }
   //boardData.states = result.states
   //boardData.hasSubTasks = result.hasSubTasks
-  boardData.stateDisplayLimit.clear()
+  //boardData.stateDisplayLimit.clear()
   // boardData.projectsMap.clear()
   // boardData.stateMap.clear()
   // boardData.tasksWithSubTasks = []
@@ -143,6 +162,7 @@ async function getData(){
     //state_list.push(epic)
     //boardData.epicTasksMap.set(epic.idEpic, [])
     boardData.epic2domMap.set(epic.idEpic, `epic-card-${epic.idEpic}`)
+    updater.value.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
   }
   //boardData.epics= epics
 
@@ -172,6 +192,7 @@ async function getData(){
     //   let epicTaskList = boardData.epicTasksMap.get(task.idEpic)
     //   epicTaskList.push(task)
     // }
+    updater.value.set(`task_${task.idTask}`, `task_${task.idTask}`)
     if (task.hasSubTasks){
       //boardData.tasksWithSubTasks.push(task)
       for (let subTask of task.subTasks){
@@ -542,25 +563,6 @@ function updateParentTask(parentTask){
   console.log('y ora?')
 }
 
-function showMore(state){
-  let number = boardData.stateDisplayLimit.get(state.state)
-  boardData.stateDisplayLimit.set(state.state, number + 10)
-  console.log(`show ${number + 10} tasks on ${state.state}`)
-}
-
-function showAll(state){
-  let number = getTasks(state).length
-  boardData.stateDisplayLimit.set(state.state,number)
-  console.log(`show ${number} tasks on ${state.state}`)
-}
-
-function showLess(state){
-  let number = boardData.stateDisplayLimit.get(state.state)
-  let limit = number -10 > 7 ? number - 10 : 7
-  boardData.stateDisplayLimit.set(state.state,limit)
-  console.log(`show ${limit} tasks on ${state.state}`)
-}
-
 async function toggleTask(task){
   task.expanded = !task.expanded
   let data = {expanded: task.expanded, idBoard: props.idBoard}
@@ -606,253 +608,6 @@ async function toggleEpic(epic){
 //   return result
 // }
 
-function dragTask(event, task, parentTask){
-  //let taskUI = document.getElementById(event.target.id)
-  event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.dropEffect = 'move'
-  let data = {id: task.idTask, state: task.state, project: task.idProject}
-  if (parentTask){
-    data.parentTask = parentTask.idTask
-  }
-  console.log('drag data')
-  console.log(data)
-  event.dataTransfer.setData('text/tm2000task', JSON.stringify(data))
-  if (parentTask) {
-    dragInitialState = `task_${parentTask.idTask}_${task.state.replace(' ','_')}`
-  }
-  else{
-    dragInitialState = `main_${task.state.replace(' ','_')}`
-  }
-}
-
-function dropTargetIsValid(id, data=null){
-  //console.log(`drop1: id != dragInitialState: ${id} != ${dragInitialState}`)
-  let differentState = id !== dragInitialState
-  if (data){
-    let extractor = /(main_|task_\d+_)(.+)/
-    let match = extractor.exec(id)
-    differentState = data.state.replace(' ','_') !== match[2]
-    //console.log(`drop.differentState= ${differentState} = ${data.state.replace(' ','_')} !== ${match[2]}`)
-  }
-  return (id.startsWith("main_") || id.startsWith("task_")) && differentState
-}
-
-function dragOverTask(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  //dummy()
-  //console.log(event.currentTarget.id)
-  let isValid = dropTargetIsValid(event.currentTarget.id)
-  if (isValid){
-    //console.log(`dragover: ${event.currentTarget.id}`)
-    let dropTarget = document.getElementById(event.currentTarget.id)
-    dropTarget.style.borderWidth="2px"
-    dropTarget.style.borderStyle="dash"
-    dropTarget.style.borderColor="navy"
-  }
-  return isValid
-}
-
-function dragLeaveTask(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  let isValid = dropTargetIsValid(event.currentTarget.id)
-  if (isValid){
-    //console.log(`dragleave: ${event.currentTarget.id}`)
-    let dropTarget = document.getElementById(event.currentTarget.id)
-    dropTarget.style.borderWidth="0px"
-    dropTarget.style.borderStyle="solid"
-    dropTarget.style.borderColor="black"
-  }
-  return isValid
-}
-
-function copyTaskItems(aList, thisId){
-  let result = []
-  for (let item of aList){
-    if (item.idTask !== thisId){
-      result.push(item)
-    }
-  }
-  return result
-}
-
-async function dropTask(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  //dummy()
-  console.log('dropTask')
-  let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'));
-  let isValid = dropTargetIsValid(event.currentTarget.id, data)
-  let dropTarget = document.getElementById(event.currentTarget.id)
-  if (isValid) {
-    console.log(`DROP! task: ${data.id}.state = ${data.state} -> ${dropTarget.id}`)
-    let dropResult = await callApi("POST", `user/boards/${props.idBoard}/tasks/${data.id}/dragged_to`,
-        {target: dropTarget.id, idBoard: props.idBoard})
-    console.log(dropResult)
-    if (dropResult.newParent){
-      if (dropResult.from === 0){
-        // console.log('before')
-        // console.log(boardData.tasks)
-        boardData.tasks = copyTaskItems(boardData.tasks, data.id)
-        // console.log('after')
-        // console.log(boardData.tasks)
-        updateTasksState()
-      }
-      else{
-        let idx = boardData.tasksWithSubTasks.findIndex(task => task.idTask === data.parentTask)
-        let parentTask = boardData.tasksWithSubTasks[idx]
-        parentTask.subTasks = copyTaskItems(parentTask.subTasks, data.id)
-        updateParentTask(parentTask)
-      }
-      if (dropResult.to === 0) {
-        boardData.tasks.push(dropResult.task)
-        updateTasksState()
-      }
-      else {
-        let idx = boardData.tasksWithSubTasks.findIndex(task => task.idTask === dropResult.to)
-        // console.log(`Found parent task ${dropResult.to} at ${idx}`)
-        let parentTask = boardData.tasksWithSubTasks[idx]
-        // console.log(parentTask)
-        parentTask.subTasks.push(dropResult.task)
-        updateParentTask(parentTask)
-      }
-    }
-    else {
-      if (dropResult.to === 0) {
-        let idx = boardData.tasks.findIndex(task => task.idTask === data.id)
-        boardData.tasks[idx] = dropResult.task
-        updateTasksState()
-      }
-      else {
-        let idxParent = boardData.tasksWithSubTasks.findIndex(task => task.idTask === data.parentTask)
-        let idxTask = boardData.tasksWithSubTasks[idxParent].subTasks.findIndex(task => task.idTask === data.id)
-        boardData.tasksWithSubTasks[idxParent].subTasks[idxTask] = dropResult.task
-        updateParentTask(boardData.tasksWithSubTasks[idxParent])
-      }
-    }
-  }
-  dropTarget.style.borderWidth="0px"
-  dropTarget.style.borderStyle="solid"
-  dropTarget.style.borderColor="black"
-}
-
-function dropTargetIsValid2(object_id, data=null){
-  let validId = /(task-card-\d+)|(subtask-card-\d+-\d+)/
-  let match = validId.exec(object_id)
-  if (data==null) {
-    return match != null
-  }
-  else {
-    return object_id !== data.id && match != null
-  }
-}
-
-function dragOverTask2(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  //dummy()
-  console.log(event.currentTarget.id)
-  let isValid = dropTargetIsValid2(event.currentTarget.id)
-  if (isValid){
-    //console.log(`dragover: ${event.currentTarget.id}`)
-    let dropTarget = document.getElementById(event.currentTarget.id)
-    //dropTarget.style.borderWidth="2px"
-    dropTarget.style.borderTopStyle="dashed"
-    dropTarget.style.borderTopColor="red"
-    // dropTarget.style.borderStyle="dashed"
-  }
-  return isValid
-}
-
-function dragLeaveTask2(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  let isValid = dropTargetIsValid2(event.currentTarget.id)
-  if (isValid){
-    //console.log(`dragleave: ${event.currentTarget.id}`)
-    let dropTarget = document.getElementById(event.currentTarget.id)
-    //dropTarget.style.borderWidth="0px"
-    dropTarget.style.borderTopStyle="solid"
-    dropTarget.style.borderTopColor="gray"
-    //dropTarget.style.borderColor="black"
-  }
-  return isValid
-}
-
-function getSiblingTasksInfo(dropTargetId){
-  let sameStateTask
-  let targetIndex=-1
-  const re_mainTask= /^task-card-(\d+)/
-  let targetTask = boardData.allTasksMap.get(dropTargetId)
-  console.log('TargetTask', targetTask)
-  let matchMainTask = re_mainTask.exec(dropTargetId)
-  if (matchMainTask){
-    //console.log('por aca', matchMainTask)
-    sameStateTask = boardData.stateMap.get(targetTask.state)
-    targetIndex = sameStateTask.findIndex(task => task.idTask === Number(matchMainTask[1]))
-    console.log('Same lane tasks:')
-    console.log(sameStateTask)
-    // for (let t2 of sameStateTask) {
-    //   console.log(t2.taskId)
-    // }
-  }
-  else{
-    const re_subTask= /^subtask-card-(\d+)-(\d+)/
-    let matchSubTask = re_subTask.exec(dropTargetId)
-    let parentTask = boardData.allTasksMap.get(`task-card-${matchSubTask[1]}`)
-    console.log('Parent task:',parentTask)
-    sameStateTask = []
-    let n=0
-    parentTask.subTasks.forEach(subTask => {
-      if (subTask.state === targetTask.state) {
-        sameStateTask.push(subTask)
-        if(subTask.idTask === Number(matchSubTask[2])){
-          targetIndex=n
-        }
-      }
-      n++
-    })
-    console.log('Same lane tasks:')
-    console.log(sameStateTask)
-  }
-  return {
-    siblingTasks: sameStateTask,
-    targetIndex: targetIndex,
-  }
-}
-
-async function dropTask2(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  //dummy()
-  console.log('dropTask2')
-  let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'));
-  let isValid = dropTargetIsValid2(event.currentTarget.id, data)
-  let dropTarget = document.getElementById(event.currentTarget.id)
-
-  if (isValid) {
-    //data = {id, state, project, parentTask}
-    console.log(`DROP-sort task: ${data.id} -> ${dropTarget.id}`)
-    let targetData = getSiblingTasksInfo(dropTarget.id)
-    await callApi('POST', `user/boards/${props.idBoard}/tasks/${data.id}/insert_before`, targetData)
-    let scroll = window.scrollY
-    await getData()
-    window.scroll(0, scroll)
-  }
-  else {
-    dropTarget.style.borderTopStyle = "solid"
-    dropTarget.style.borderTopColor = "gray"
-  }
-}
-
-
 window.electronAPI.onRefresh(async() => {
   let scroll = window.scrollY
   console.log(scroll)
@@ -866,20 +621,46 @@ onMounted(()=>{
   getData()
 })
 
+uiStore.$subscribe(async (mutation, state) => {
+  if (state.task2UpdateState.id > 0) {
+    let scroll = window.scrollY
+    //console.log(state)
+    let task = allTaskMap.get(state.task2UpdateState.id)
+    task.state = state.task2UpdateState.state
+    //console.log(task)
+    if (task.isRoot){
+      let theTask = boardData.tasks.find(t => t.idTask === task.idTask)
+      theTask.state = task.state
+    }
+    else if (task.idEpic){
+      let key = updater.value.get(`epic_${task.idEpic}`)
+      key+='X'
+      updater.value.set(`epic_${task.idEpic}`, key)
+    }
+    else if (task.parentTask){
+      let key = updater.value.get(`task_${task.parentTask}`)
+      key+='X'
+      updater.value.set(`task_${task.parentTask}`, key)
+    }
+    uiStore.setNewState4Task(0, '?')
+    setTimeout(`restoreYScroll(${scroll})`, 500)
+  }
+})
+
 </script>
 
 <template>
   <div id="mainContainer" style="position: relative;" >
-    <TMKanban id="rootKanban" :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
+    <TMKanban id="rootKanban" :key="updater.get('root')" :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
               @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask"/>
-    <div v-for="epic in boardData.epics" :key="epic.idEpic" >
+    <div v-for="epic in boardData.epics" :key="updater.get(`epic_${epic.idEpic}`)" >
       <div :style="styleForSuperTask(epic)" v-if="epic.expanded">
         <TMEpicContainer :states="boardData.states" :epic="epic" :id="`epic-container-${epic.idEpic}`"
                          @toggle-detail="toggleTask"
                          @toggle-epic="toggleEpic" @select="showTask"/>
       </div>
     </div>
-    <div v-for="task in boardData.tasks" :key="task.idTask" >
+    <div v-for="task in boardData.tasks" :key="updater.get(`task_${task.idTask}`)" >
       <div :style="styleForSuperTask(task)" v-if="task.expanded && task.hasSubTasks">
         <TMTaskContainer :states="boardData.states" :task="task" :id="`super-task-${task.idTask}`"
                          @toggle-detail="toggleTask" @select="showTask" />

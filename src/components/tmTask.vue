@@ -1,5 +1,4 @@
 <script setup>
-import { useUISessionStore } from 'stores/ui_state';
 
 defineOptions({
   name: 'TMTask',
@@ -15,13 +14,7 @@ const props = defineProps({
 const events = defineEmits([
   'toggleDetail',
   'select',
-  'dragStarted',
-  'dragOver',
-  'dragLeave',
-  'drop'
 ])
-
-const uiStore = useUISessionStore()
 
 
 function styleForTask(){
@@ -32,28 +25,8 @@ function getTaskMouseOutStyle(){
   return "this.style.borderStyle='solid'"
 }
 
-function dragTask(event, task, something){
-
-}
-
-function dragOverTask2(event){
-
-}
-
-function dragLeaveTask2(event){
-
-}
-
-function dropTask2(event){
-
-}
-
 async function timerClick(){
   props.task.timerClick()
-  uiStore.setSelectedTask(props.task.idTask)
-}
-
-function showTask(){
   uiStore.setSelectedTask(props.task.idTask)
 }
 
@@ -67,8 +40,7 @@ function editTask(){
   <div class="task" :style="styleForTask()"
        @click="$emit('select', task)" :id="`task-card-${task.idTask}`"
        onmouseover="this.style.borderStyle='dotted'" :onmouseout="getTaskMouseOutStyle()" style="position: relative;"
-       draggable="true" @dragstart="dragTask($event, task, null)"
-       @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
+       draggable="true"
   >
     <span><b>{{ task.key }}</b><br> </span>
     <span style="padding-right: 8px; ">

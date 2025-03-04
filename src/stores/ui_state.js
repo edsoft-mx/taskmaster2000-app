@@ -5,6 +5,7 @@ export const useUISessionStore = defineStore('ui_state_session', {
     selectedTask: 0,
     pomodoroSession: 0,
     pomodoroIndex: 0,
+    task2UpdateState: {id: 0, state: '?'}
   }),
 
   actions: {
@@ -16,6 +17,10 @@ export const useUISessionStore = defineStore('ui_state_session', {
     },
     setPomodoroIndex(pomodoroIndex) {
       this.pomodoroIndex = pomodoroIndex;
+    },
+    setNewState4Task(taskId, state) {
+      this.task2UpdateState.id = taskId;
+      this.task2UpdateState.state = state;
     }
   }
 })

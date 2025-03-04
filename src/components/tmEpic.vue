@@ -12,12 +12,7 @@ const props = defineProps({
 
 const events = defineEmits([
   'select',
-//  'editEpic',
   'toggleEpic',
-  'dragStarted',
-  'dragOver',
-  'dragLeave',
-  'drop'
 ])
 
 function styleForTask(){
@@ -26,22 +21,6 @@ function styleForTask(){
 
 function getTaskMouseOutStyle(){
   return "this.style.borderStyle='none'"
-}
-
-function dragTask(event, task, something){
-
-}
-
-function dragOverTask2(event){
-
-}
-
-function dragLeaveTask2(event){
-
-}
-
-function dropTask2(event){
-
 }
 
 function styleForEpicTab(){
