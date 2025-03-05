@@ -35,7 +35,7 @@ async function toggleSuperTaskInfo(){
 }
 
 function editTask(){
-
+  window.electronAPI.openEpicPage(`board/${props.epic.idBoard}/epic/${props.epic.idEpic}`, null)
 }
 
 function epicDetail(){

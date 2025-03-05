@@ -57,6 +57,7 @@ class BoardEpic{
     this.description= epic.description
     this.epic= epic.epic
     this.expanded= epic.expanded
+    this.idBoard = epic.idBoard
     this.idEpic= epic.idEpic
     this.idProject= epic.idProject
     this.key= epic.key
@@ -111,7 +112,7 @@ class BoardTask {
     this.taskType= task.taskType
     this.title= task.title
     this.parentTask= parentTaskId
-    this.isRoot= parentTask == null
+    this.isRoot= parentTaskId == null
     this.subTasks=[]
     allTaskMap.set(this.idTask, this)
     BoardTask.allTasks.push(this)
@@ -229,7 +230,7 @@ function resetData(){
   epicMap.clear()
   taskMap.clear()
   allTaskMap.clear()
-  BoardEpic.epics = []
+  BoardEpic.allEpics = []
   BoardTask.allTasks = []
   BoardTask.rootTasks = []
 }

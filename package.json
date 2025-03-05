@@ -15,6 +15,7 @@
   },
   "main": "main.js",
   "dependencies": {
+    "@quasar/cli": "^2.5.0",
     "@quasar/extras": "^1.16.4",
     "chart.js": "^4.4.6",
     "core-js": "^3.31.1",

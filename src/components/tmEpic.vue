@@ -27,6 +27,11 @@ function styleForEpicTab(){
   return `background-color: ${props.epic.color}`
 }
 
+function editEpic(){
+  window.electronAPI.openEpicPage(`board/${props.epic.idBoard}/epic/${props.epic.idEpic}`, null)
+}
+
+
 </script>
 
 <template>
@@ -44,7 +49,7 @@ function styleForEpicTab(){
       <br>({{ epic.subTasks.length }} tasks)
       <img src="epic.png" style="position: absolute; left: 4px; bottom: 6px; width:16px; height: 16px"/>
       <img :src="`${epic.priority}.svg`" style="position: absolute; left: 22px; bottom: 6px; width:16px; height: 16px"/>
-      <button @click="$emit('edit-epic')" type="button" title="Edit epic" class="buttonTaskAction" style="bottom: 4px; right: 4px; ">
+      <button @click="editEpic" type="button" title="Edit epic" class="buttonTaskAction" style="bottom: 4px; right: 4px; ">
         <span class="material-icons-outlined material-icons">edit</span>
       </button>
       <button  @click="$emit('toggle-epic', epic)" :title="epic.expanded ? 'Hide Tasks':'Show Tasks'"
@@ -96,6 +101,7 @@ button.buttonTaskAction {
   border-top-left-radius: 5px;
   border-top-right-radius: 5px;
   text-align: center;
+  color: white;
 }
 
 .folder-label {

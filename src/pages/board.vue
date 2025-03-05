@@ -2,7 +2,7 @@
 defineOptions({
   name: 'tm-board'
 });
-import {ref, reactive, defineProps, watch, inject, computed, onMounted} from 'vue'
+import {ref, reactive, defineProps, watch, inject, computed, onMounted, triggerRef} from 'vue'
 import { callApi } from 'src/common'
 import {
   allStates,
@@ -48,7 +48,7 @@ const clickPomodoroTimer = inject('clickPomodoroTimer')
 const globalSelectedTask = inject('globalSelectedTask')
 const daysWithActivity = inject('daysWithActivity')
 
-const updater = ref(new Map([['root', 'root_0']]))
+const updater = reactive(new Map([['root', 'root_0']]))
 
 const boardData = reactive({
   name: "",
@@ -103,6 +103,7 @@ function updateActivityDate(map, kind, date){
 
 
 async function getData(){
+  console.log('board get data')
   boardData.tasks = []
   boardData.epics = []
   boardData.states= []
@@ -124,51 +125,25 @@ async function getData(){
   for (let project of result.projects) {
     projectObjects.push(new BoardProject(project))
   }
-  //boardData.states = result.states
-  //boardData.hasSubTasks = result.hasSubTasks
-  //boardData.stateDisplayLimit.clear()
-  // boardData.projectsMap.clear()
-  // boardData.stateMap.clear()
-  // boardData.tasksWithSubTasks = []
 
-  //boardData.allTasksMap.clear()
   headerTitle.value= boardData.name
   headerIconShow.value= false
-  // for (let state of boardData.states){
-  //   boardData.stateMap.set(state.state, [])
-  //   boardData.stateMapEpics.set(state.state, [])
-  //   boardData.stateDisplayLimit.set(state.state, 7)
-  // }
-  // for (let prj of result.projects) {
-  //   boardData.projects.push(new BoardProject(prj))
-  // }
-  // boardData.projects = result.projects
-  // for (let prj of boardData.projects){
-  //   boardData.projectsMap.set(prj.idProject, prj)
-  // }
 
   selectedTask.value = null
   prevSelectedTask.value = null
   globalSelectedTask.value = null
-
-  //boardData.epicTasksMap.clear()
+  boardData.task2domMap.clear()
   boardData.epic2domMap.clear()
+
   let epics = await apiCallBoardEpics
   for (let epic of epics){
     let epicObject= new BoardEpic(epic)
     epicObjects.push(epicObject)
-    //let state_list = boardData.stateMapEpics.get(epic.state)
-    //epic.taskType = 'epic'
-    //state_list.push(epic)
-    //boardData.epicTasksMap.set(epic.idEpic, [])
     boardData.epic2domMap.set(epic.idEpic, `epic-card-${epic.idEpic}`)
-    updater.value.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
+    updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
   }
-  //boardData.epics= epics
 
   result = await apiCallBoardTasks
-  //boardData.tasksWithSubTasks = []
-  boardData.task2domMap.clear()
   let activityMap = new Map()
   console.log('new activityMap')
   for (let task of result.tasks){
@@ -181,18 +156,18 @@ async function getData(){
       // console.log(`Set ${task.key}.estimatedStartDate = ${task.estimatedStartDate}`)
       updateActivityDate(activityMap, 'start', task.estimatedStartDate)
     }
-    // let state_list = boardData.stateMap.get(task.state)
-    // state_list.push(task)
     taskObjects.push(taskObject)
-    //boardData.allTasksMap.set(`task-card-${task.idTask}`, task)
     boardData.task2domMap.set(task.idTask, `task-card-${task.idTask}`)
-    // if (task.idEpic){
-    //   // console.log('A Task with an Epic!')
-    //   // console.log(task)
-    //   let epicTaskList = boardData.epicTasksMap.get(task.idEpic)
-    //   epicTaskList.push(task)
-    // }
-    updater.value.set(`task_${task.idTask}`, `task_${task.idTask}`)
+    if (task.idEpic!=null){
+      // console.log('A Task with an Epic!')
+      // console.log(task)
+      let epicKey= `epic_${task.idEpic}_tasks`
+      if (!boardData.hasOwnProperty(epicKey)){
+        boardData[epicKey] = []
+      }
+      boardData[epicKey].push(task)
+    }
+    updater.set(`task_${task.idTask}`, `task_${task.idTask}`)
     if (task.hasSubTasks){
       //boardData.tasksWithSubTasks.push(task)
       for (let subTask of task.subTasks){
@@ -211,10 +186,10 @@ async function getData(){
   }
   daysWithActivity.value = activityMap
   leftDrawerOpen.value= false
-  console.log(`allStates.length = ${allStates.length}`)
-  console.log(`Epics.all.length = ${BoardEpic.allEpics.length}`)
-  console.log(`Tasks.root.length= ${BoardTask.rootTasks.length}`)
-  console.log(allStates)
+  // console.log(`allStates.length = ${allStates.length}`)
+  // console.log(`Epics.all.length = ${BoardEpic.allEpics.length}`)
+  // console.log(`Tasks.root.length= ${BoardTask.rootTasks.length}`)
+  // console.log(allStates)
   boardData.states= statesObjects
   boardData.projects = projectObjects
   boardData.epics = epicObjects
@@ -329,32 +304,6 @@ function getSubTasks(task, state){
     result.push(sb)
   }
   return result
-}
-
-function newTask(state, parentTask=null){
-  if (parentTask==null){
-    window.electronAPI.openTaskPage(`board/${props.idBoard}/task/0/-1`, `state=${state.state}`)
-  }
-  else {
-    window.electronAPI.openTaskPage(`board/${props.idBoard}/task/${parentTask.idTask}/0`, `state=${state.state}`)
-  }
-}
-
-function newEpic(state){
-  window.electronAPI.openEpicPage(`board/${props.idBoard}/epic/0`, `state=${state.state}`)
-}
-
-function editEpic(epic){
-  window.electronAPI.openEpicPage(`board/${props.idBoard}/epic/${epic.idEpic}`, null)
-}
-
-function editTask(task, parentTask=null){
-  if (parentTask==null) {
-    window.electronAPI.openTaskPage(`board/${props.idBoard}/task/${task.idTask}/-1`, null)
-  }
-  else{
-    window.electronAPI.openTaskPage(`board/${props.idBoard}/task/${parentTask.idTask}/${task.idTask}`, null)
-  }
 }
 
 function showSearchedTask(taskPath){
@@ -624,23 +573,55 @@ onMounted(()=>{
 uiStore.$subscribe(async (mutation, state) => {
   if (state.task2UpdateState.id > 0) {
     let scroll = window.scrollY
+    console.log(`Updating task state ${state.task2UpdateState.id} to ${state.task2UpdateState.state}`)
     //console.log(state)
     let task = allTaskMap.get(state.task2UpdateState.id)
     task.state = state.task2UpdateState.state
     //console.log(task)
     if (task.isRoot){
-      let theTask = boardData.tasks.find(t => t.idTask === task.idTask)
-      theTask.state = task.state
+      // let idx = boardData.tasks.findIndex(t => t.idTask === task.idTask)
+      // boardData.tasks[idx]= task
+      boardData.tasks = BoardTask.rootTasks
+      let key = updater.get("root")
+      updater.set("root", key+'X')
+      triggerRef(boardData)
     }
     else if (task.idEpic){
-      let key = updater.value.get(`epic_${task.idEpic}`)
+      let epic = BoardEpic.allEpics.find((e)=> e.idEpic === task.idEpic)
+      let taskIdx = epic.subTasks.findIndex(t => t.idTask === task.idTask)
+      epic.subTasks[taskIdx]= task
+      let key = updater.get(`epic_${task.idEpic}`)
       key+='X'
-      updater.value.set(`epic_${task.idEpic}`, key)
+      updater.set(`epic_${task.idEpic}`, key)
     }
     else if (task.parentTask){
-      let key = updater.value.get(`task_${task.parentTask}`)
-      key+='X'
-      updater.value.set(`task_${task.parentTask}`, key)
+      let taskIdx = boardData.tasks.findIndex(t => t.idTask === task.parentTask)
+      let parentTask2= boardData.tasks[taskIdx]
+      if (parentTask2){
+        // the parent is a root node
+        let subTaskIdx = parentTask2.subTasks.findIndex(t => t.idTask === task.idTask)
+        boardData.tasks[taskIdx].subTasks[subTaskIdx]= task
+        let key = updater.get(`task_${task.parentTask}`)
+        key+='X'
+        updater.set(`task_${task.parentTask}`, key)
+      }
+      else {
+        // the parent is not a root node, so, it should belong to an epic
+        //boardData.epics = []
+        let parentTask2 = BoardTask.allTasks.find((e)=> e.idTask === task.parentTask)
+        let epic = BoardEpic.allEpics.find((e)=> e.idEpic === parentTask2.idEpic)
+        let taskIdx = epic.subTasks.findIndex(t => t.idTask === parentTask2.idTask)
+        let subTaskIdx = parentTask2.subTasks.findIndex(t => t.idTask === task.idTask)
+        epic.subTasks[taskIdx].subTasks[subTaskIdx]= task
+        let key = updater.get(`epic_${epic.idEpic}`)
+        key+='X'
+        updater.set(`epic_${task.idEpic}`, key)
+        // let newEpics = []
+        // for (let e of BoardEpic.allEpics) {
+        //   newEpics.push(e)
+        // }
+        // boardData.epics = newEpics
+      }
     }
     uiStore.setNewState4Task(0, '?')
     setTimeout(`restoreYScroll(${scroll})`, 500)

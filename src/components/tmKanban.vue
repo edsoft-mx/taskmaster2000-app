@@ -4,6 +4,8 @@ import TMEpic from "components/tmEpic.vue";
 import TMTask from "components/tmTask.vue";
 import {callApi} from "src/common";
 import { useUISessionStore } from 'stores/ui_state';
+import {computed, ref} from 'vue'
+
 
 defineOptions({
   name: 'TMKanban',
@@ -25,11 +27,13 @@ const props = defineProps({
   epics: {
     type: Array,
     required: false,
+    default: null
   },
 })
 
 const uiStore = useUISessionStore()
-let stateDisplayLimit = new Map()
+let stateDisplayLimit = ref(new Map())
+let stateTasksLength = ref(new Map())
 let dragInitialState = ''
 
 const events = defineEmits([
@@ -45,18 +49,24 @@ const events = defineEmits([
   'drop'
 ])
 
+let rootElements = computed(()=>{
+  let result = props.epics ? props.epics : []
+  return result.concat(props.tasks)
+})
+
 function getTasks(state){
-  if (!stateDisplayLimit.has(state.state)) {
-    stateDisplayLimit.set(state.state, 7)
+  if (!stateDisplayLimit.value.has(state.state)) {
+    stateDisplayLimit.value.set(state.state, 7)
   }
   let result = []
   if (props.parent==null){
     // console.log(`Root node, returning ${state.tasks.length} tasks with state ${state.state}`)
     // console.log(`Root node, returning ${state.epics?.length} epics with state ${state.state}`)
-    result = state.epics ? state.epics : []
-    if (state.tasks?.length > 0) {
-      result = result.concat(state.tasks)
-    }
+    // result = state.epics ? state.epics : []
+    // if (state.tasks?.length > 0) {
+    //   result = result.concat(state.tasks)
+    // }
+    result = rootElements.value.filter((e)=> e.state === state.state)
   } else {
     // console.log('getTasks')
     // console.log(props.childPropertyName)
@@ -72,16 +82,24 @@ function getTasks(state){
     }
     //console.log(`and ${r.length} tasks of state ${state.state}`)
   }
-  return result.slice(0, stateDisplayLimit.get(state.state))
+  stateTasksLength.value.set(state.state, result.length)
+  return result.slice(0, stateDisplayLimit.value.get(state.state))
 }
 
 
 function newTask(state){
-
+  let idBoard = getTasks(state)[0].idBoard
+  if (props.parent==null || props.parent.idTask==null){
+    window.electronAPI.openTaskPage(`board/${idBoard}/task/0/-1`, `state=${state.state}`)
+  }
+  else {
+    window.electronAPI.openTaskPage(`board/${idBoard}/task/${props.parent.idTask}/0`, `state=${state.state}`)
+  }
 }
 
 function newEpic(state){
-
+  let idBoard = getTasks(state)[0].idBoard
+  window.electronAPI.openEpicPage(`board/${idBoard}/epic/0`, `state=${state.state}`)
 }
 
 function dragOverTask(event){
@@ -345,21 +363,21 @@ async function dropTask2(event){
 }
 
 function showMore(state){
-  let number = stateDisplayLimit.get(state.state)
-  stateDisplayLimit.set(state.state, number + 10)
+  let number = stateDisplayLimit.value.get(state.state)
+  stateDisplayLimit.value.set(state.state, number + 10)
   console.log(`show ${number + 10} tasks on ${state.state}`)
 }
 
 function showAll(state){
-  let number = getTasks(state).length
-  stateDisplayLimit.set(state.state,number)
+  let number = stateTasksLength.value.get(state.state)
+  stateDisplayLimit.value.set(state.state, number)
   console.log(`show ${number} tasks on ${state.state}`)
 }
 
 function showLess(state){
-  let number = stateDisplayLimit.get(state.state)
+  let number = stateDisplayLimit.value.get(state.state)
   let limit = number -10 > 7 ? number - 10 : 7
-  stateDisplayLimit.set(state.state,limit)
+  stateDisplayLimit.value.set(state.state,limit)
   console.log(`show ${limit} tasks on ${state.state}`)
 }
 
@@ -372,7 +390,7 @@ function showLess(state){
          :id="`main_${state.state.replace(' ','_')}`"
     >
       <div class="stateTitle">
-        {{ state.state }} <span><small>{{ getTasks(state).length }} </small></span>
+        {{ state.state }} <span><small>{{ stateTasksLength.get(state) }} </small></span>
       </div>
       <div :class="`state_${state.state}`" :id="`container_${state.state.replace(' ', '_')}`">
         <div v-for="task in getTasks(state)" :key="task.idTask">
@@ -393,7 +411,20 @@ function showLess(state){
         <div class="newTask" v-if="state.start &&  parent==null">
           <a href=":newEpic" @click="newEpic(state)" @click.prevent>+ Add a new epic</a>
         </div>
-
+        <div class="newTask" v-if="stateTasksLength.get(state.state) > 7">
+          Show...
+          <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state) ">
+              <a href="#more" @click="showMore(state)" @click.prevent>More</a>
+            </span>
+          <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state) ">
+              &nbsp;|&nbsp;
+              <a href="#more" @click="showAll(state)" @click.prevent>All</a>
+            </span>
+          <span v-if="stateDisplayLimit.get(state.state) > 7">
+              &nbsp;|&nbsp;
+              <a href="#less" @click="showLess(state)" @click.prevent>Less</a>
+            </span>
+        </div>
       </div>
     </div>
   </div>
