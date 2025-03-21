@@ -16,7 +16,13 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  tasks: {
+    type: Array,
+    required: true,
+  }
 })
+
+const events = defineEmits(['maximize', 'toggle-detail', 'select'])
 
 let showDetails = ref(false)
 
@@ -65,7 +71,10 @@ function superTaskDetail(){
                 tasklists: true, openLinksInNewWindow: true, moreStyling: true }" />
   </div>
 
-  <TMKanban :parent="task"  :states="states" @select="(subTask)=>{$emit('select', subTask)}" />
+  <TMKanban :parent="task" :tasks="tasks" :states="states"
+            @select="(subTask)=>{$emit('select', subTask)}"
+            @maximize="(t)=>$emit('maximize', t)"
+  />
 </div>
 </template>
 

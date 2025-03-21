@@ -16,6 +16,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  tasks: {
+    type: Array,
+    required: true,
+  }
 })
 
 const events = defineEmits([
@@ -24,7 +28,8 @@ const events = defineEmits([
   'dragStarted',
   'dragOver',
   'dragLeave',
-  'drop'
+  'drop',
+  'maximize'
 ])
 
 let showDetails = ref(false)
@@ -71,13 +76,19 @@ function epicDetail(){
                 tasklists: true, openLinksInNewWindow: true, moreStyling: true }" @select="$emit('select', epic)" />
     </div>
 
-    <TMKanban :parent="epic" :states="states" @toggle-detail="(element)=>{$emit('toggle-detail',element)}"
-              @select="(subTask)=>{$emit('select', subTask)}" />
-    <div v-for="task in epic.subTasks" :key="task.idTask" style="margin-left:32px;">
+    <TMKanban :parent="epic" :tasks="tasks" :states="states"
+              @toggle-detail="(element)=>{$emit('toggle-detail',element)}"
+              @select="(subTask)=>{$emit('select', subTask)}"
+              @maximize="(t)=>$emit('maximize', t)"
+    />
+    <div v-for="task in tasks" :key="task.uiKeyContainer" style="margin-left:32px;">
       <div v-if="task.expanded && task.hasSubTasks" >
-        <TMTaskContainer :states="states" :task="task" :id="`super-task-${task.idTask}`"
+        <TMTaskContainer :states="states" :task="task" :tasks="task.subTasks"
+                         :id="`super-task-${task.idTask}`"
                          @toggle-detail="(element)=>{$emit('toggle-detail',element)}"
-                         @select="(subTask)=>{$emit('select', subTask)}" />
+                         @select="(subTask)=>{$emit('select', subTask)}"
+                         @maximize="(t)=>$emit('maximize', t)"
+        />
       </div>
     </div>
   </div>

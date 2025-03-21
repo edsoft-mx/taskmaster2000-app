@@ -49,6 +49,7 @@ const formData = reactive({
   inEdition: false,
   taskRef: null,
   tags: [],
+  xtraData: {},
 })
 
 const formOp = ref("")
@@ -72,6 +73,24 @@ const taskTypes = reactive([
   {value: "discarded", label: "Discarded"},
   {value: "archived", label: "Archived"},
 ])
+
+const taskChecklists = computed(()=>{
+  let result = []
+  if (formData.xtraData?.checkLists){
+    for (let cl of formData.xtraData.checkLists){
+      result.push(cl)
+    }
+  }
+  return result
+})
+
+const taskImages = computed(()=>{
+  return []
+})
+
+const taskAttachments = computed(()=>{
+  return []
+})
 
 let tags = ref([])
 
@@ -145,6 +164,7 @@ async function getData(){
     updateEpics4Project(formData.project)
     title = !isSubTask.value ?  "New Task" : `New Subtask for ${formData.parentTask.key}`
     formData.state = searchParam('state')
+    formData.xtraData = {}
   }
   else {
     let idSearch = !isSubTask.value ? props.idTask : props.idSubTask
@@ -165,6 +185,7 @@ async function getData(){
     formData.estimatedStartDate = currentValues.estimatedStartDate
     formData.subTasks = currentValues.subTasks != null ? currentValues.subTasks : []
     formData.taskRef = currentValues
+    formData.xtraData = currentValues.xtraData
     if (currentValues.idTags.length > 0) {
       let selectedTags= tags_.filter(tp => currentValues.idTags.find(t => t=== tp.value))
       formData.tags = selectedTags
@@ -197,7 +218,7 @@ async function addSubtask(){
   console.log(formData.project.value)
   let stcpy = (' ' + formData.newSubTaskTitle).slice(1)
   let project = boardData.projectsMap.get(formData.project.value)
-  props.idBoard
+  //props.idBoard
   if (stcpy) {
     const searchParams = new URLSearchParams('');
     searchParams.append('text', stcpy)
@@ -263,7 +284,8 @@ async function submitForm() {
     estimatedDuration: formData.estimatedDuration,
     hasSubTasks: formData.subTasks != null ? formData.subTasks.length > 0 : false,
     subTasks: formData.subTasks,
-    tags: formData.tags
+    tags: formData.tags,
+    xtraData: formData.xtraData,
   }
   let result = null
   switch (isNewTask.value) {
@@ -305,6 +327,70 @@ function updateEpics4Project(newValue){
   formData.epic= null
 }
 
+function newChecklist(){
+  let counter= 0
+  if (formData.xtraData==null){
+    formData.xtraData = {}
+  }
+  if (formData.xtraData.checkLists==null){
+    formData.xtraData.checkLists = []
+  }
+  else{
+    counter = formData.xtraData.checkLists.length;
+  }
+  let newChecklist = {
+    'name': "",
+    'items': [],
+    'completed': [],
+    id: counter
+  }
+  formData.xtraData.checkLists.push(newChecklist)
+}
+
+function removeChecklist(checklist){
+  let idx = formData.xtraData.checkLists.indexOf(checklist)
+  console.log(idx)
+  formData.xtraData.checkLists.splice(idx, 1)
+}
+
+function editChecklist(checklist){
+  let idx = formData.xtraData.checkLists.indexOf(checklist)
+  let checkList = formData.xtraData.checkLists[idx]
+  let txt=''
+  for (let item of checkList.items){
+    txt += item.label + '\n'
+  }
+  newCheckListItem.value = txt;
+  checkList.items=[]
+}
+
+function newImage(){
+
+}
+
+function newAttachment(){
+
+}
+
+function addItem(checklist){
+  let text = newCheckListItem.value.substring(0)
+  let lines = text.split("\n")
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+    if (line.trim()===''){
+      continue
+    }
+    let l = checklist.items.length
+    checklist.items.push({
+      'label': line,
+      'value': l
+    })
+  }
+  newCheckListItem.value= ''
+}
+
+const newCheckListItem = ref('')
+
 getData()
 </script>
 
@@ -334,6 +420,47 @@ getData()
             <div style="width: 33%">
               <q-select ref="selTaskType" v-model="formData.taskType" :options="taskTypes" label="Type" />
             </div>
+          </div>
+          <div>
+            <q-btn-dropdown color="primary" label="Add..." auto-close>
+              <q-list>
+                <q-item clickable @click="newChecklist">
+                  <q-item-section>
+                    <q-item-label>Checklist</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item clickable @click="newImage">
+                  <q-item-section>
+                    <q-item-label>Image</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item clickable @click="newAttachment">
+                  <q-item-section>
+                    <q-item-label>Attachment</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+            <div v-for="checklist in taskChecklists" :key="checklist.id">
+              <div class="checklist">
+                <q-input v-model="checklist.name" label="Checklist Title">
+                  <template v-slot:after>
+                    <q-icon name="edit" class="cursor-pointer"  @click="editChecklist(checklist)"></q-icon>
+                    <q-icon name="close" class="cursor-pointer" color="red" @click="removeChecklist(checklist)"></q-icon>
+                  </template>
+                </q-input>
+                <q-option-group v-model="checklist.completed" :options="checklist.items" type="checkbox" />
+                <q-input v-model="newCheckListItem" label="New checklist item(s)" autogrow type="textarea">
+                  <template v-slot:append>
+                    <q-btn @click="addItem(checklist)">Add</q-btn>
+                  </template>
+                </q-input>
+              </div>
+            </div>
+            <div v-for="image in taskImages" :key="image.key"></div>
+            <div v-for="attachment in taskAttachments" :key="attachment.key"></div>
           </div>
           <q-select v-model="formData.tags" label="Tags" :options="tags" multiple>
             <template v-slot:option="{ itemProps, opt, selected, toggleOption }">
@@ -407,8 +534,11 @@ getData()
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>
-                    <q-input v-model="formData.newSubTaskTitle" label="New Subtask" autogrow type="textarea" />
-                    <q-btn label="Add" type="button" size="xs" outline color="primary" @click="addSubtask" />
+                    <q-input v-model="formData.newSubTaskTitle" label="New Subtask" autogrow type="textarea">
+                      <template v-slot:after>
+                        <q-btn label="Add" type="button" size="xs" outline color="primary" @click="addSubtask" />
+                      </template>
+                    </q-input>
                   </q-item-label>
                 </q-item-section>
               </q-item>
@@ -428,5 +558,11 @@ getData()
 </template>
 
 <style scoped>
+
+div.checklist{
+  margin: 12px;
+  border: lightblue solid 1px;
+  padding: 8px;
+}
 
 </style>

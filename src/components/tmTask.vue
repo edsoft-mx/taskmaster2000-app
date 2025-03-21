@@ -4,6 +4,11 @@ defineOptions({
   name: 'TMTask',
 })
 
+import {
+  allTaskMap
+} from 'src/commonObjects'
+
+
 const props = defineProps({
   task: {
     type: Object,
@@ -26,12 +31,14 @@ function getTaskMouseOutStyle(){
 }
 
 async function timerClick(){
-  props.task.timerClick()
-  uiStore.setSelectedTask(props.task.idTask)
+  let theTask = allTaskMap.get(props.task.idTask);
+  await theTask.timerClick()
+  //uiStore.setSelectedTask(props.task.idTask)
 }
 
 function editTask(){
-  props.task.editTask()
+  let theTask = allTaskMap.get(props.task.idTask);
+  theTask.editTask()
 }
 
 </script>

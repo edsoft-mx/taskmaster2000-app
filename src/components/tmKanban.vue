@@ -4,7 +4,7 @@ import TMEpic from "components/tmEpic.vue";
 import TMTask from "components/tmTask.vue";
 import {callApi} from "src/common";
 import { useUISessionStore } from 'stores/ui_state';
-import {computed, ref} from 'vue'
+import {computed, ref, watch} from 'vue'
 
 
 defineOptions({
@@ -29,6 +29,11 @@ const props = defineProps({
     required: false,
     default: null
   },
+  expandState: {
+    type: String,
+    required: false,
+    default: ""
+  }
 })
 
 const uiStore = useUISessionStore()
@@ -38,6 +43,7 @@ let dragInitialState = ''
 
 const events = defineEmits([
   'select',
+  'maximize',
   // 'editTask',
   // 'timerClick',
   'toggleDetail',
@@ -62,21 +68,14 @@ function getTasks(state){
   if (props.parent==null){
     // console.log(`Root node, returning ${state.tasks.length} tasks with state ${state.state}`)
     // console.log(`Root node, returning ${state.epics?.length} epics with state ${state.state}`)
-    // result = state.epics ? state.epics : []
-    // if (state.tasks?.length > 0) {
-    //   result = result.concat(state.tasks)
-    // }
     result = rootElements.value.filter((e)=> e.state === state.state)
   } else {
-    // console.log('getTasks')
-    // console.log(props.childPropertyName)
-    //console.log(props.parent)
-    let tasks = props.parent.subTasks
-    //console.log(tasks)
+    // console.log('get sub-Tasks')
+    // console.log(props.tasks)
     // console.log(`container has ${tasks.length} tasks`)
-    for (let task of tasks){
+    for (let task of props.tasks){
         //console.log(task.key)
-        if (task.state == state.state){
+        if (task.state === state.state){
           result.push(task)
         }
     }
@@ -381,6 +380,15 @@ function showLess(state){
   console.log(`show ${limit} tasks on ${state.state}`)
 }
 
+// watch(
+//   props.expandState,
+//   async(state, oldVal) => {
+//     let number = stateTasksLength.value.get(state)
+//     stateDisplayLimit.value.set(state, number)
+//     console.log(`show ${number} tasks on ${state}`)
+//   }
+// )
+
 </script>
 
 <template>
@@ -393,14 +401,17 @@ function showLess(state){
         {{ state.state }} <span><small>{{ stateTasksLength.get(state) }} </small></span>
       </div>
       <div :class="`state_${state.state}`" :id="`container_${state.state.replace(' ', '_')}`">
-        <div v-for="task in getTasks(state)" :key="task.idTask">
+        <div v-for="task in getTasks(state)" :key="task.uiKey">
           <TMEpic :id="`epic-card-${task.idEpic}`" :epic="task" v-if="task.idEpic && !task.idTask"
                   @toggle-epic="$emit('toggle-epic', task)" @select="$emit('select', task)"
                   @dragstart="dragEpic($event, task, null)"
                   @dragover="dragOverEpic($event)" @dragleave="dragLeaveEpic($event)" @drop="dropEpic($event)"
+                  @dblclick="$emit('maximize', task)"
           />
           <TMTask :id="`task-card-${task.idTask}`" :task="task" v-if="task.idTask"
-                  @toggle-detail="$emit('toggle-detail', task)" @select="$emit('select', task)"
+                  @dblclick="$emit('maximize', task)"
+                  @toggle-detail="$emit('toggle-detail', task)"
+                  @select="$emit('select', task)"
                   @dragstart="dragTask($event, task, parent)"
                   @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
           />

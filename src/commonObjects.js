@@ -1,4 +1,3 @@
-import parentTask from "postcss-selector-parser";
 
 let allStates = []
 let stateMap = new Map()
@@ -6,6 +5,13 @@ let projectMap = new Map()
 let epicMap = new Map()
 let taskMap = new Map()
 let allTaskMap = new Map()
+
+
+function getRandomAlphanumeric() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const randomIndex = Math.floor(Math.random() * characters.length);
+  return characters.charAt(randomIndex);
+}
 
 
 class BoardState {
@@ -67,6 +73,7 @@ class BoardEpic{
     this.subTasks = []
     this.taskType = 'epic'
     this.color = epic.color
+    this.uiKey= `${this.idEpic}`
     let prj = projectMap.get(this.idProject)
     prj.addEpic(this)
     let state= stateMap.get(this.state)
@@ -75,50 +82,29 @@ class BoardEpic{
   }
 
   static allEpics = []
+
+  editEpic(){
+    window.electronAPI.openEpicPage(`board/${this.idBoard}/epic/${this.idEpic}`, null)
+  }
+
 }
 
 class BoardTask {
   constructor(task, parentTaskId=null) {
-    this.color= task.color
-    this.daysWorked= task.daysWorked
-    this.formattedDaysWorked= []
-    if (this.daysWorked && this.daysWorked.length > 0){
-      this.formattedDaysWorked= this.daysWorked.map((dayWorked) => BoardTask.getCalendarFormat(dayWorked))
-    }
-    this.description= task.description
-    this.dueDate= task.dueDate
-    this.formattedDueDate= BoardTask.getCalendarFormat(this.dueDate)
-    this.endState= task.endState
-    this.estimatedStartDate= task.estimatedStartDate
-    this.formattedEstimatedStartDate= BoardTask.getCalendarFormat(this.estimatedStartDate)
-    this.expanded= task.expanded
-    this.hasSubTasks= task.hasSubTasks
-    this.hierarchy= task.hierarchy
-    this.icon= task.icon
-    this.idBoard= task.idBoard
-    this.idEpic= task.idEpic
-    this.idProject= task.idProject
-    this.idTags= task.idTags
-    this.idTask= task.idTask
-    this.initialState= task.initialState
-    this.isExternal= task.isExternal
-    this.key= task.key
-    this.notes= task.notes
-    this.priority= task.priority
-    this.projectKey= task.projectKey
-    this.projectName= task.projectName
-    this.sortOrder= task.sortOrder
-    this.state= task.state
-    this.taskType= task.taskType
-    this.title= task.title
-    this.parentTask= parentTaskId
-    this.isRoot= parentTaskId == null
+    this.setMainValues(task)
+    this.parentTaskId= parentTaskId
+    this.isRoot= parentTaskId == null && !this.idEpic
     this.subTasks=[]
+    this.uiKeyContainer= `taskContainer-${this.idTask}`
+    this.uiKey= `task-${this.idTask}`
+    this.epic= null
+    this.parentTask= null
     allTaskMap.set(this.idTask, this)
     BoardTask.allTasks.push(this)
     if (this.hasSubTasks) {
       for (let subtask of task.subTasks) {
         let subTaskObject= new BoardTask(subtask, this.idTask)
+        subTaskObject.parentTask= this
         this.subTasks.push(subTaskObject)
       }
     }
@@ -126,6 +112,7 @@ class BoardTask {
       if (this.idEpic){
         let epic= epicMap.get(this.idEpic)
         epic.subTasks.push(this)
+        this.epic= epic
       }
       else {
         BoardTask.rootTasks.push(this)
@@ -135,6 +122,89 @@ class BoardTask {
       }
       let project = projectMap.get(this.idProject)
       project.addTask(this)
+    }
+  }
+
+  updateUIElements(){
+    if (this.epic){
+      console.log('Updating epic UI key')
+      console.log(this.epic)
+      this.epic.uiKey = this.epic.uiKey + getRandomAlphanumeric()
+    }
+    if (this.parentTask) {
+      console.log('Updating parent task UI keys')
+      console.log(this.parentTask)
+      this.parentTask.uiKey = this.parentTask.uiKey + getRandomAlphanumeric()
+      this.parentTask.uiKeyContainer = this.parentTask.uiKeyContainer + getRandomAlphanumeric()
+    }
+    console.log('Updating UI keys')
+    console.log(this)
+    this.uiKeyContainer = this.uiKeyContainer + getRandomAlphanumeric()
+    this.uiKey = this.uiKey + getRandomAlphanumeric()
+  }
+
+  setMainValues(data){
+    this.color= data.color
+    this.daysWorked= data.daysWorked
+    this.formattedDaysWorked= []
+    if (this.daysWorked && this.daysWorked.length > 0){
+      this.formattedDaysWorked= this.daysWorked.map((dayWorked) => BoardTask.getCalendarFormat(dayWorked))
+    }
+    this.description= data.description
+    this.dueDate= data.dueDate
+    this.formattedDueDate= BoardTask.getCalendarFormat(this.dueDate)
+    this.endState= data.endState
+    this.estimatedStartDate= data.estimatedStartDate
+    this.formattedEstimatedStartDate= BoardTask.getCalendarFormat(this.estimatedStartDate)
+    this.expanded= data.expanded
+    this.hasSubTasks= data.hasSubTasks
+    this.hierarchy= data.hierarchy
+    this.icon= data.icon
+    this.idBoard= data.idBoard
+    this.idEpic= data.idEpic
+    this.idProject= data.idProject
+    this.idTags= data.idTags
+    this.idTask= data.idTask
+    this.initialState= data.initialState
+    this.isExternal= data.isExternal
+    this.key= data.key
+    this.notes= data.notes
+    this.priority= data.priority
+    this.projectKey= data.projectKey
+    this.projectName= data.projectName
+    this.sortOrder= data.sortOrder
+    this.state= data.state
+    this.taskType= data.taskType
+    this.title= data.title
+    this.xtraData= data.xtraData
+  }
+
+  //updateData(newData, parentTaskId=null){
+  updateData(newData){
+    let previousState = this.state
+    this.setMainValues(newData)
+    //this.parentTask= parentTaskId
+    //this.isRoot= parentTaskId == null && !this.idEpic
+    // if (this.hasSubTasks) {
+    //   for (let subtask of newData.subTasks) {
+    //     let subTaskObject = this.subTasks.find((st)=>st.idTask === subtask.idTask)
+    //     if (subTaskObject!=null){
+    //       subTaskObject.updateData(subtask, parentTaskId)
+    //     }
+    //   }
+    // }
+    //if (parentTaskId==null && previousState != this.state) {
+    if (previousState != this.state) {
+      let stateP = stateMap.get(previousState)
+      let idx= stateP.tasks.findIndex((t)=> t.idTask === this.idTask)
+      if (idx!=-1) {
+        stateP.tasks.splice(idx,1)
+      }
+      let state= stateMap.get(this.state)
+      let idx2= state.tasks.findIndex((t)=> t.idTask === this.idTask)
+      if (idx2==-1) {
+        state.tasks.push(this)
+      }
     }
   }
 
@@ -160,10 +230,12 @@ class BoardTask {
 
   editTask(){
     if (this.parentTask==null) {
+      console.log(`board/${this.idBoard}/task/${this.idTask}/-1`)
       window.electronAPI.openTaskPage(`board/${this.idBoard}/task/${this.idTask}/-1`, null)
     }
     else{
-      window.electronAPI.openTaskPage(`board/${this.idBoard}/task/${this.parentTask}/${this.idTask}`, null)
+      console.log(`board/${this.idBoard}/task/${this.parentTaskId}/${this.idTask}`)
+      window.electronAPI.openTaskPage(`board/${this.idBoard}/task/${this.parentTaskId}/${this.idTask}`, null)
     }
   }
 

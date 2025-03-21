@@ -1,4 +1,6 @@
 <script setup>
+import TmTaskDescription from "components/tmTaskDescription.vue";
+
 defineOptions({
   name: 'tm-board'
 });
@@ -12,7 +14,7 @@ import {
   BoardEpic,
   BoardTask,
   resetData,
-  allTaskMap
+  allTaskMap, epicMap
 } from 'src/commonObjects'
 import TMKanban from "components/tmKanban.vue";
 import TMTaskContainer from 'components/tmTaskContainer.vue'
@@ -36,17 +38,19 @@ let previousUIStoreState = {
 
 const currentBoardId = inject('currentBoardId')
 const leftDrawerOpen = inject('leftDrawerOpen')
+// TODO: remove rightDrawerHeader, rightDrawerSubtasks, rightDrawerContent, rightDrawerContent2
 const rightDrawerOpen = inject('rightDrawerOpen')
-const rightDrawerContent = inject('rightDrawerContent')
-const rightDrawerContent2 = inject('rightDrawerContent2')
-const rightDrawerHeader = inject('rightDrawerHeader')
-const rightDrawerSubtasks = inject('rightDrawerSubtasks')
+// const rightDrawerContent = inject('rightDrawerContent')
+// const rightDrawerContent2 = inject('rightDrawerContent2')
+// const rightDrawerHeader = inject('rightDrawerHeader')
+// const rightDrawerSubtasks = inject('rightDrawerSubtasks')
 const headerTitle = inject('headerTitle')
 const headerIconShow = inject('headerIconShow')
 let dragInitialState = ''
 const clickPomodoroTimer = inject('clickPomodoroTimer')
 const globalSelectedTask = inject('globalSelectedTask')
 const daysWithActivity = inject('daysWithActivity')
+const maximizedTask = ref(false)
 
 const updater = reactive(new Map([['root', 'root_0']]))
 
@@ -56,13 +60,7 @@ const boardData = reactive({
   tasks: [],
   projects: [],
   epics: [],
-  //stateDisplayLimit: new Map(),
-  // projectsMap: new Map(),
-  // stateMap: new Map(),
-  // stateMapEpics: new Map(),
-  // hasSubTasks: false,
-  // tasksWithSubTasks: [],
-  // allTasksMap: new Map(),
+//  epicTasks: {},
   task2domMap: new Map(),
   epic2domMap: new Map(),
   //epicTasksMap: new Map(),
@@ -71,6 +69,7 @@ const boardData = reactive({
 const expandedEpics = computed(() => boardData.epics.filter(t => t.expanded))
 
 const selectedTask = ref(null)
+const maximizedTaskRef = ref(null)
 const prevSelectedTask = ref(null)
 
 
@@ -108,12 +107,12 @@ async function getData(){
   boardData.epics = []
   boardData.states= []
   boardData.projects = []
+  boardData.epicTasks = {}
   resetData()
   let taskObjects= []
   let epicObjects= []
   let statesObjects= []
   let projectObjects= []
-  currentBoardId.value = props.idBoard
   let apiCallBoard = callApi('GET', `user/boards/${props.idBoard}`)
   let apiCallBoardTasks = callApi('GET', `user/boards/${props.idBoard}/tasks`)
   let apiCallBoardEpics = callApi('GET', `user/boards/${props.idBoard}/epics`)
@@ -140,7 +139,7 @@ async function getData(){
     let epicObject= new BoardEpic(epic)
     epicObjects.push(epicObject)
     boardData.epic2domMap.set(epic.idEpic, `epic-card-${epic.idEpic}`)
-    updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
+    //updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
   }
 
   result = await apiCallBoardTasks
@@ -158,16 +157,16 @@ async function getData(){
     }
     taskObjects.push(taskObject)
     boardData.task2domMap.set(task.idTask, `task-card-${task.idTask}`)
-    if (task.idEpic!=null){
-      // console.log('A Task with an Epic!')
-      // console.log(task)
-      let epicKey= `epic_${task.idEpic}_tasks`
-      if (!boardData.hasOwnProperty(epicKey)){
-        boardData[epicKey] = []
-      }
-      boardData[epicKey].push(task)
-    }
-    updater.set(`task_${task.idTask}`, `task_${task.idTask}`)
+    // if (task.idEpic!=null){
+    //   // console.log('A Task with an Epic!')
+    //   // console.log(task)
+    //   let epicKey= `epic_${task.idEpic}_tasks`
+    //   if (!boardData.epicTasks.hasOwnProperty(epicKey)){
+    //     boardData.epicTasks[epicKey] = []
+    //   }
+    //   boardData.epicTasks[epicKey].push(task)
+    // }
+    //updater.set(`task_${task.idTask}`, `task_${task.idTask}`)
     if (task.hasSubTasks){
       //boardData.tasksWithSubTasks.push(task)
       for (let subTask of task.subTasks){
@@ -194,6 +193,9 @@ async function getData(){
   boardData.projects = projectObjects
   boardData.epics = epicObjects
   boardData.tasks = BoardTask.rootTasks
+  currentBoardId.value = props.idBoard
+  maximizedTask.value= false
+  closeMaximized()
 }
 
 function styleForEpicTab(epic){
@@ -247,7 +249,11 @@ watch(
     () => props.executeOp,
   async (newVal, oldVal) =>  {
       if (newVal.op==='showTask'){
-        showSearchedTask(newVal.value)
+        showSearchedTask(newVal.value, this)
+      }
+      if (newVal.op==='updateAndShowTask'){
+        await updateTask(newVal.value)
+        await showSearchedTask(newVal.value, this)
       }
       else if (newVal.op==='refreshData'){
         let scroll = window.scrollY
@@ -270,66 +276,109 @@ function getStateId(state){
   return `container_${state.state.replace(' ', '_')}`;
 }
 
-function getTasks(state){
-  let stateList = boardData.stateMap.get(state.state)
-  let tasks_without_epic = stateList.filter(task => task.idEpic == null)
-  let epicStateList = boardData.stateMapEpics.get(state.state)
-  // console.log(`Tareas para ${state.state}: ${state_list}`)
-  return epicStateList.concat(tasks_without_epic)
-}
+// function getTasks(state){
+//   let stateList = boardData.stateMap.get(state.state)
+//   let tasks_without_epic = stateList.filter(task => task.idEpic == null)
+//   let epicStateList = boardData.stateMapEpics.get(state.state)
+//   // console.log(`Tareas para ${state.state}: ${state_list}`)
+//   return epicStateList.concat(tasks_without_epic)
+// }
+//
+// function getEpicTasks(state, epic){
+//   // console.log('Epic')
+//   // console.log(epic)
+//   // console.log('State')
+//   // console.log(state)
+//   let result = []
+//   let tasks4Epic = boardData.epicTasksMap.get(epic.idEpic)
+//   // console.log('Epic tasks')
+//   // console.log(tasks4Epic)
+//   for (let task of tasks4Epic){
+//     if (task.state === state.state){
+//       result.push(task)
+//     }
+//   }
+//   return result
+// }
+//
+// function getSubTasks(task, state){
+//   let result = []
+//   for (let sb of task.subTasks){
+//     if (sb.state !== state.state){
+//       continue
+//     }
+//     result.push(sb)
+//   }
+//   return result
+// }
 
-function getEpicTasks(state, epic){
-  // console.log('Epic')
-  // console.log(epic)
-  // console.log('State')
-  // console.log(state)
-  let result = []
-  let tasks4Epic = boardData.epicTasksMap.get(epic.idEpic)
-  // console.log('Epic tasks')
-  // console.log(tasks4Epic)
-  for (let task of tasks4Epic){
-    if (task.state === state.state){
-      result.push(task)
-    }
-  }
-  return result
-}
-
-function getSubTasks(task, state){
-  let result = []
-  for (let sb of task.subTasks){
-    if (sb.state !== state.state){
-      continue
-    }
-    result.push(sb)
-  }
-  return result
-}
-
-function showSearchedTask(taskPath){
-  if (taskPath===''){
+function showSearchedTask(idTask, context){
+  if (!idTask){
     return
   }
-  console.log(`Locating and showing ${taskPath}`)
-  if(!taskPath.includes('.')){
-    selectedTask.value = boardData.tasks.find(t => t.idTask === Number(taskPath))
-    globalSelectedTask.value = selectedTask.value
-    if (document.getElementById(`task-card-${selectedTask.value.idTask}`)==null){
-      let state = boardData.states.find(s => s.state === selectedTask.value.state)
-      showAll(state)
+  let task = BoardTask.allTasks.find(t => t.idTask == idTask)
+  if (document.getElementById(`task-card-${idTask}`)!=null){
+    //task is visible
+    setTimeout(`scrollToTask(${idTask})`, 500)
+    if (task != null){
+      showTask(task)
+      if (maximizedTask.value){
+        maximizedTaskRef.value= task
+      }
     }
-    setTimeout(`scrollToTask(${selectedTask.value.idTask})`, 500)
-  }
-  else{
-    let parts = taskPath.split('.');
-    selectedTask.value = boardData.tasks.find(t => t.idTask === Number(parts[0]))
-    globalSelectedTask.value = selectedTask.value
-    if (document.getElementById(`task-card-${selectedTask.value.idTask}`)==null){
-      let state = boardData.states.find(s => s.state === selectedTask.value.state)
-      showAll(state)
+    else {
+      console.log(`could not find task ${idTask}`)
     }
-    viewSubTask(Number(parts[1]))
   }
+  else {
+    console.log('Task is not visible, trying to show it...')
+    if (!maximizedTask.value){
+      alert("Task is not visible")
+    }
+    else{
+      maximizedTaskRef.value= task
+    }
+    // if (task.idEpic==null && task.isRoot){
+    //   if (context.$refs.rootKanban){
+    //     context.$refs.rootKanban.expandState= task.state
+    //   }
+    // }
+  }
+  // console.log(`Locating and showing ${taskPath}`)
+  // if(!taskPath.includes('.')){
+  //   selectedTask.value = boardData.tasks.find(t => t.idTask === Number(taskPath))
+  //   globalSelectedTask.value = selectedTask.value
+  //   if (document.getElementById(`task-card-${selectedTask.value.idTask}`)==null){
+  //     let state = boardData.states.find(s => s.state === selectedTask.value.state)
+  //     showAll(state)
+  //   }
+  //   setTimeout(`scrollToTask(${selectedTask.value.idTask})`, 500)
+  // }
+  // else{
+  //   let parts = taskPath.split('.');
+  //   selectedTask.value = boardData.tasks.find(t => t.idTask === Number(parts[0]))
+  //   globalSelectedTask.value = selectedTask.value
+  //   if (document.getElementById(`task-card-${selectedTask.value.idTask}`)==null){
+  //     let state = boardData.states.find(s => s.state === selectedTask.value.state)
+  //     showAll(state)
+  //   }
+  //   viewSubTask(Number(parts[1]))
+  // }
+}
+
+async function updateTask(idTask){
+  if (!idTask){
+    return
+  }
+  console.log(`Updating task ${idTask}`)
+  let task = BoardTask.allTasks.find(t => t.idTask == idTask)
+  let currentValues = await callApi('GET', `user/boards/${props.idBoard}/tasks/${idTask}`)
+  task.updateData(currentValues)
+  task.updateUIElements()
+  // if (task.idTask === selectedTask.value.idTask){
+  //   selectedTask.value=null
+  //   selectedTask.value=task
+  // }
 }
 
 function viewSubTask(subTask){
@@ -400,51 +449,6 @@ function showTask(task, openRightDrawer=true){
   globalSelectedTask.value = selectedTask.value
   addClassToTask(task, 'selectedTask')
   prevSelectedTask.value= task
-  let project = projectMap.get(task.idProject)
-  rightDrawerHeader.value=`<h3><img class="taskIcon" src="${task.taskType}.png">
-    <strong>${task.key}</strong> | ${project.name}<br>${task.title}
-    </h3>`
-  let subtasksChunk = ''
-  if (task.hasSubTasks){
-    subtasksChunk = '\n## Pending Subtasks:\n'
-    rightDrawerSubtasks.value = task.subTasks.filter(st => !st.endState)
-  }
-   else {
-    rightDrawerSubtasks.value = []
-  }
-  let taskDescription1 = `
-
-State: \` ${task.state} \`
-Priority: ![alt-priority](${task.priority}.svg =24x24) ${task.priority}
-
-`
-  if (task.description){
-    taskDescription1 += `## Description:
-
-${task.description}
-
-`
-  }
-  if (task.notes){
-    taskDescription1 += `## Notes:
-
-${task.notes}
-
-`
-  }
-  taskDescription1 += `
-
-## Activity:
-
-`
-  //${subtasksChunk}
-  rightDrawerContent.value = taskDescription1
-  rightDrawerContent2.value = `
-Estimated Duration: ${task.estimatedDuration ? task.estimatedDuration : 'n/a'}
-Time Spent: ${ task.timeSpent ? task.timeSpent : 'n/a' }
-Time Spent Today: ${ task.timeSpentToday ? task.timeSpentToday : 'n/a' }
-
-  ` + subtasksChunk
 }
 
 function showEpic(epic, openRightDrawer=true){
@@ -509,7 +513,7 @@ function updateTasksState(){
 }
 
 function updateParentTask(parentTask){
-  console.log('y ora?')
+  parentTask.updateUIElements()
 }
 
 async function toggleTask(task){
@@ -570,6 +574,40 @@ onMounted(()=>{
   getData()
 })
 
+function getRandomAlphanumeric() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const randomIndex = Math.floor(Math.random() * characters.length);
+  return characters.charAt(randomIndex);
+}
+
+function maximizeTask(task){
+  console.log('maximizeTask')
+  console.log(task)
+  console.log('Hide Main board')
+  document.getElementById('mainContainer').style.display = 'none';
+  console.log('show maximized panel')
+  maximizedTask.value = true;
+  maximizedTaskRef.value= task
+  console.log('scroll to top')
+  window.scrollBy(0, 0, "smooth")
+}
+
+function closeMaximized(){
+  document.getElementById('mainContainer').style.display = 'block';
+  maximizedTask.value = false;
+}
+
+async function updateAndShowTask(aTask=null){
+  if (aTask){
+    await updateTask(aTask.idTask)
+    showSearchedTask(aTask.idTask)
+  }
+  else  if (selectedTask.value!=null){
+    await updateTask(selectedTask.value.idTask)
+    showSearchedTask(selectedTask.value.idTask)
+  }
+}
+
 uiStore.$subscribe(async (mutation, state) => {
   if (state.task2UpdateState.id > 0) {
     let scroll = window.scrollY
@@ -578,49 +616,41 @@ uiStore.$subscribe(async (mutation, state) => {
     let task = allTaskMap.get(state.task2UpdateState.id)
     task.state = state.task2UpdateState.state
     //console.log(task)
+    task.updateUIElements()
+    triggerRef(boardData)
     if (task.isRoot){
       // let idx = boardData.tasks.findIndex(t => t.idTask === task.idTask)
       // boardData.tasks[idx]= task
       boardData.tasks = BoardTask.rootTasks
       let key = updater.get("root")
       updater.set("root", key+'X')
-      triggerRef(boardData)
     }
     else if (task.idEpic){
-      let epic = BoardEpic.allEpics.find((e)=> e.idEpic === task.idEpic)
-      let taskIdx = epic.subTasks.findIndex(t => t.idTask === task.idTask)
-      epic.subTasks[taskIdx]= task
-      let key = updater.get(`epic_${task.idEpic}`)
-      key+='X'
-      updater.set(`epic_${task.idEpic}`, key)
+    //   let tasks= boardData.epicTasks[`epic_${task.idEpic}_tasks`]
+    //   let taskIdx = tasks.findIndex(t => t.idTask === task.idTask)
+    //   tasks[taskIdx]= task
+       let epic = boardData.epics.find((e)=> e.idEpic === task.idEpic)
+       epic.uiKey= epic.uiKey + getRandomAlphanumeric()
     }
     else if (task.parentTask){
-      let taskIdx = boardData.tasks.findIndex(t => t.idTask === task.parentTask)
+      let taskIdx = boardData.tasks.findIndex(t => t.idTask === task.parentTaskId)
       let parentTask2= boardData.tasks[taskIdx]
       if (parentTask2){
         // the parent is a root node
         let subTaskIdx = parentTask2.subTasks.findIndex(t => t.idTask === task.idTask)
         boardData.tasks[taskIdx].subTasks[subTaskIdx]= task
-        let key = updater.get(`task_${task.parentTask}`)
-        key+='X'
-        updater.set(`task_${task.parentTask}`, key)
+        boardData.tasks[taskIdx].subTasks[subTaskIdx].uiKey=
+          boardData.tasks[taskIdx].subTasks[subTaskIdx].uiKey + getRandomAlphanumeric()
       }
       else {
         // the parent is not a root node, so, it should belong to an epic
-        //boardData.epics = []
-        let parentTask2 = BoardTask.allTasks.find((e)=> e.idTask === task.parentTask)
-        let epic = BoardEpic.allEpics.find((e)=> e.idEpic === parentTask2.idEpic)
-        let taskIdx = epic.subTasks.findIndex(t => t.idTask === parentTask2.idTask)
-        let subTaskIdx = parentTask2.subTasks.findIndex(t => t.idTask === task.idTask)
-        epic.subTasks[taskIdx].subTasks[subTaskIdx]= task
-        let key = updater.get(`epic_${epic.idEpic}`)
-        key+='X'
-        updater.set(`epic_${task.idEpic}`, key)
-        // let newEpics = []
-        // for (let e of BoardEpic.allEpics) {
-        //   newEpics.push(e)
-        // }
-        // boardData.epics = newEpics
+        let parentTask2 = BoardTask.allTasks.find((t)=> t.idTask === task.parentTaskId)
+        let epic = boardData.epics.find(e=> e.idEpic === parentTask2.idEpic)
+        let tasks= epic.subTasks //boardData.epicTasks[`epic_${epic.idEpic}_tasks`]
+        let parentIdx = epic.subTasks.findIndex(t => t.idTask === task.parentTaskId)
+        //let childIdx= tasks[parentIdx].subTasks.findIndex(t => t.idTask === task.idTask)
+        //tasks[parentIdx].subTasks[childIdx]= task
+        tasks[parentIdx].uiKeyContainer= tasks[parentIdx].uiKeyContainer + getRandomAlphanumeric()
       }
     }
     uiStore.setNewState4Task(0, '?')
@@ -628,28 +658,160 @@ uiStore.$subscribe(async (mutation, state) => {
   }
 })
 
+function timerClick(){
+  let theTask = allTaskMap.get(maximizedTaskRef.value.idTask);
+  theTask.timerClick()
+}
+
+function editTask2(){
+  let theTask = allTaskMap.get(maximizedTaskRef.value.idTask);
+  theTask.editTask()
+}
+
+function editEpic2(){
+  let theEpic = epicMap.get(maximizedTaskRef.value.idEpic);
+  theEpic.editEpic()
+}
+
+const maxiProject = computed(() => {
+  let result =''
+  if (projectMap.has(maximizedTaskRef.value.idProject)){
+    let prj = projectMap.get(maximizedTaskRef.value.idProject)
+    result= prj.name
+  }
+  return result
+})
+
+const maxiEpic = computed(() => {
+  let result = ''
+  if (maximizedTaskRef.value.parentTask){
+    let pt= maximizedTaskRef.value.parentTask
+    if (pt.idEpic){
+      let epic = epicMap.get(pt.idEpic)
+      result= epic.key
+    }
+  }
+  else if (maximizedTaskRef.value.idEpic){
+    let epic = epicMap.get(maximizedTaskRef.value.idEpic)
+    result= epic.key
+  }
+  return result
+})
+
+const maxiParentTask = computed(() => {
+  let result = ''
+  if (maximizedTaskRef.value.idEpic){
+    return result
+  }
+  if (maximizedTaskRef.value.parentTask){
+    result = maximizedTaskRef.value.parentTask.key
+  }
+  else{
+    result = maximizedTaskRef.value.key
+  }
+  return result
+})
+
+const maxiSubTask = computed(() => {
+  let result = ''
+  if (maximizedTaskRef.value.parentTask){
+    result = maximizedTaskRef.value.key
+  }
+  return result
+})
+
 </script>
 
 <template>
   <div id="mainContainer" style="position: relative;" >
-    <TMKanban id="rootKanban" :key="updater.get('root')" :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
-              @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask"/>
-    <div v-for="epic in boardData.epics" :key="updater.get(`epic_${epic.idEpic}`)" >
+    <TMKanban id="rootKanban" :key="updater.get('root')" ref="rootKanban"
+              :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
+              @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
+    <div v-for="epic in boardData.epics" :key="epic.uiKey" >
       <div :style="styleForSuperTask(epic)" v-if="epic.expanded">
         <TMEpicContainer :states="boardData.states" :epic="epic" :id="`epic-container-${epic.idEpic}`"
+                         :tasks="epic.subTasks"
                          @toggle-detail="toggleTask"
-                         @toggle-epic="toggleEpic" @select="showTask"/>
+                         @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
       </div>
     </div>
-    <div v-for="task in boardData.tasks" :key="updater.get(`task_${task.idTask}`)" >
+    <div v-for="task in boardData.tasks" :key="task.uiKeyContainer" >
       <div :style="styleForSuperTask(task)" v-if="task.expanded && task.hasSubTasks">
-        <TMTaskContainer :states="boardData.states" :task="task" :id="`super-task-${task.idTask}`"
-                         @toggle-detail="toggleTask" @select="showTask" />
+        <TMTaskContainer :states="boardData.states" :task="task" :tasks="task.subTasks"
+                         :id="`super-task-${task.idTask}`"
+                         @toggle-detail="toggleTask" @select="showTask" @maximize="maximizeTask" />
       </div>
     </div>
+  </div>
+  <div v-if="maximizedTask" class="maxiTask">
+    <div class="close-btn">
+      <q-btn icon="close" color="red" square size="xs" @click="closeMaximized" />
+    </div>
+    <tm-task-description :task="maximizedTaskRef" :key="maximizedTaskRef?.uiKey ? maximizedTaskRef.uiKey :'viewMax0'"
+                         @task-updated="updateAndShowTask(maximizedTaskRef)">
+      <template v-slot:title>
+        <h3>
+          <q-breadcrumbs>
+            <q-breadcrumbs-el :label="maxiProject" icon="work_outline" />
+            <q-breadcrumbs-el :label="maxiEpic" icon="img:epic.png" v-if="maxiEpic" />
+            <q-breadcrumbs-el :label="maxiParentTask" icon="img:task.png" v-if="maxiParentTask" />
+            <q-breadcrumbs-el :label="maxiSubTask" icon="img:subtask.png" v-if="maxiSubTask" />
+          </q-breadcrumbs>
+          <p style="margin-top: 6px;">
+            {{ maximizedTaskRef.title }}{{ maximizedTaskRef.idEpic && !maximizedTaskRef.idTask? maximizedTaskRef.epic:"" }}
+          </p>
+        </h3>
+      </template>
+      <template v-slot:actions>
+        <br>
+        <q-btn @click="timerClick" icon="timer" label="Start Pomodoro" color="primary" v-if="maximizedTaskRef.taskType !== 'epic'" />
+        &nbsp;&nbsp;
+        <q-btn @click="editTask2" icon="edit" label="Edit Task" color="primary" v-if="maximizedTaskRef.taskType !== 'epic'" />
+        <q-btn @click="editEpic2" icon="edit" label="Edit Epic" color="primary" v-if="maximizedTaskRef.taskType === 'epic'" />
+      </template>
+      <template v-slot:subtasks>
+        <div v-if="maximizedTaskRef.idTask">
+          <h4 v-if="maximizedTaskRef.hasSubTasks" >SubTasks</h4>
+          <TMKanban id="kanbanTask" :key="maximizedTaskRef.uiKey"
+                    v-if="maximizedTaskRef.hasSubTasks || maximizedTaskRef.taskType === 'epic'"
+                    :tasks="maximizedTaskRef.subTasks" :states="boardData.states"
+                    @toggle-detail="toggleTask"  @select="showTask" @maximize="maximizeTask"/>
+        </div>
+        <div v-if="maximizedTaskRef.idEpic && !maximizedTaskRef.idTask">
+          <h4 v-if="maximizedTaskRef.hasSubTasks" >Tasks</h4>
+          <TMEpicContainer :states="boardData.states" :epic="maximizedTaskRef"
+                           :id="`epic-container-${maximizedTaskRef.idEpic}`"
+                           :tasks="maximizedTaskRef.subTasks"
+                           @toggle-detail="toggleTask"
+                           @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
+        </div>
+      </template>
+    </tm-task-description>
   </div>
 </template>
 
 <style scoped>
+
+div.close-btn{
+  position: absolute;
+  right: 10px;
+  top: 20px;
+
+}
+
+div.maxiTask{
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  position: relative;
+}
+
+button.buttonTaskAction3 {
+  padding:0;
+  margin:0;
+  height: 22px;
+  color: #707070;
+}
+
 </style>
 

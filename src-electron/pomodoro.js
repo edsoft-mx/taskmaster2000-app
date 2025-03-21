@@ -95,10 +95,10 @@ function getFutureEpoch(duration){
   return new Date(now.getTime() + duration)
 }
 
-async function pomodoroNext(){
+async function pomodoroNext(notify=true){
   let idx = getPomodoroSession()
   let newSession = idx < 8 ? idx+1 : 1
-  await setPomodoroSession(newSession)
+  await setPomodoroSession(newSession, notify)
   pomodoroData.start = Date.now()
   pomodoroData.remaining = getCurrentPomodoroFullDuration()
   pomodoroData.epoch = getFutureEpoch(pomodoroData.remaining)
@@ -110,7 +110,7 @@ async function pomodoroNext(){
     "start": pomodoroData.start,
   }
   await callApi('POST', `user/pomodoro/${newSession}`, data)
-  await pomodoroUpdateLabel()
+  await pomodoroUpdateLabel(notify)
   //let workingToday = await callApi("GET", 'user/spent_time/today')
   //setWorkingToday(workingToday)
   pomodoroData.notifiedEndOfBreak= false
@@ -123,7 +123,7 @@ function getPomodoroRemainingMSecs(){
   return remaining
 }
 
-async function pomodoroUpdateLabel() {
+async function pomodoroUpdateLabel(notify=true) {
   let remainingTime = ''
   if (!pomodoroData.epoch) {
     remainingTime = '--:--'
@@ -134,14 +134,16 @@ async function pomodoroUpdateLabel() {
     let neg = interval >= 0 ? '' : '-'
     remainingTime = `${neg}${minutes}`.padStart(2, '0') + ':' + `${seconds}`.padStart(2, '0')
   }
-  await eventPropagate({
-    type: 'updateTimer',
-    value: {
-      remainingTime: remainingTime,
-      task: pomodoroData.task,
-      pomodoroData: getPomodoroDataObject(),
-    }
-  })
+  if (notify){
+    await eventPropagate({
+      type: 'updateTimer',
+      value: {
+        remainingTime: remainingTime,
+        // task: pomodoroData.task,
+        pomodoroData: getPomodoroDataObject(),
+      }
+    })
+  }
 }
 
 async function pomodoroTick(){
@@ -288,14 +290,14 @@ async function pomodoroOnTimerClick(task){
   else {
     // start a new pomodoro with task
     if (pomodoroData.task == null || !pomodoroData.timerActive) {
-      if (idx===0 || idx % 2 === 0){
-        await pomodoroNext()
-      }
       task.workingIntervalStart = Date.now()
+      if (idx===0 || idx % 2 === 0){
+        await pomodoroNext(false)
+      }
       pomodoroData.start = Date.now()
       pomodoroData.timerActive = true
-      await setPomodoroTask(task)
       console.log(`New working period for ${task.idTask}`)
+      await setPomodoroTask(task, true)
       await pomodoroStartTimer()
     }
       // an existing Pomodoro timer is running, but clicked on a different task
@@ -330,29 +332,33 @@ function getPomodoroDataObject(){
   }
 }
 
-async function setPomodoroSession(index){
+async function setPomodoroSession(index, notify=true){
   pomodoroData.session = index
-  await eventPropagate({
-    type: 'pomodoroSetSession',
-    value: index,
-    pomodoroData: getPomodoroDataObject()
-  })
+  if (notify){
+    await eventPropagate({
+      type: 'pomodoroSetSession',
+      value: index,
+      pomodoroData: getPomodoroDataObject()
+    })
+  }
 }
 
 function getPomodoroSession(){
   return pomodoroData.session
 }
 
-async function setPomodoroTask(task){
+async function setPomodoroTask(task, notify=true){
   pomodoroData.task= task
   if (task.key){
     pomodoroData.previousTask= task
   }
-  await eventPropagate({
-    type: 'pomodoroTaskStart',
-    pomodoroData: getPomodoroDataObject()
-  })
-  //TODO: probably here goes Clockify.start signal
+  if (notify){
+    await eventPropagate({
+      type: 'pomodoroTaskStart',
+      pomodoroData: getPomodoroDataObject()
+    })
+    //TODO: probably here goes Clockify.start signal
+  }
 }
 
 async function pomodoroRehydrate(){
@@ -361,7 +367,6 @@ async function pomodoroRehydrate(){
   pomodoroData.timerActive = pomData.active
   pomodoroData.task = pomData.task
   pomodoroData.start = pomData.start
-  await setPomodoroSession(pomData.state)
   if (pomData.remaining) {
     pomodoroData.remaining = pomData.remaining
     pomodoroData.epoch = getFutureEpoch(pomData.remaining)
@@ -379,7 +384,7 @@ async function pomodoroRehydrate(){
   else{
     await pomodoroUpdateLabel()
   }
-
+  await setPomodoroSession(pomData.state)
 }
 
 async function eventPropagate(event){
