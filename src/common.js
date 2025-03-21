@@ -432,8 +432,15 @@ export class Timeline {
           this.workDayData.first = first
           this.workDayData.last = last
         }
-        if (pomodoroData.task?.idProject){
-          color = allProjects.find(p => p.idProject === pomodoroData.task.idProject).color
+        if (pomodoroData.task){
+          let prj = allProjects.find(p => p.idProject === pomodoroData.task.idProject)
+          if (prj==null){
+            console.log(`Could not find project ${pomodoroData.task.idProject} on pomodoro.startTentativePeriod`)
+          }
+          color = prj.color
+        }
+        else {
+          console.log('Pomodoro data has no task set')
         }
         console.log('Tentative period has been set')
         let tstart = this.convertJSTsToChart(pomodoroData.start)

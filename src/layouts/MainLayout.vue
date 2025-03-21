@@ -18,7 +18,7 @@
           <rect v-for="interval in timelineObjectHor?.workDayIntervals(timelineObject.workDayData.todayKey)"
                 :x="timelineObjectHor.getIntervalX(interval)" :key="interval.id"
                 y="0" height="100%" :fill="interval.color" stroke="white"
-                :fill-opacity="interval?.tentative ? 0.5 : 1.0"
+                :fill-opacity="interval?.tentative ? '70%' : '100%'"
                 :width="timelineObjectHor.getIntervalWidth(interval)" />
         </svg>
         <q-btn-dropdown dense dropdown-icon="query_builder">
@@ -152,34 +152,10 @@
     <q-drawer v-model="rightDrawerOpen" side="right" bordered :width="rightDrawerWidth">
       <q-tab-panels v-model="rightDrawerTab" animated v-if="rightDrawerOpen">
         <q-tab-panel name="tabSummary" class="summary" >
-          <div v-html="rightDrawerHeader"></div>
-          <VueShowdown :markdown="rightDrawerContent" flavor="github" :options="{ emoji:true, headerLevelStart:3,
-            tasklists: true, openLinksInNewWindow: true, moreStyling: true }" />
-          <div v-if="selectedTask && selectedTask.idTask">
-          <q-date v-model="selectedDay" today-btn :events="getCalendarForTask" :event-color="getTaskColor" />
-          <br>
-          <q-btn label="Set Start Date" :disable="selectedDay==='' || !selectedTask" @click="calendarSetStartDate" />
-          <q-btn label="Set Due Date" :disable="selectedDay==='' || !selectedTask" @click="calendarSetDueDate" />
-          </div>
-          <VueShowdown :markdown="rightDrawerContent2" flavor="github" :options="{ emoji:true, headerLevelStart:3,
-            tasklists: true, openLinksInNewWindow: true, moreStyling: true }" />
-          <q-list bordered v-if="rightDrawerSubtasks.length > 0">
-            <q-item v-for="subtask in rightDrawerSubtasks" @click="openTaskOrSubTask(subtask)" :key="subtask.id" :clickable="!subtask.isNew" :v-ripple="!subtask.isNew">
-              <q-item-section>
-                <q-item-label lines="3">
-                  <b>{{ subtask.key }}</b> <q-chip color="primary" dense square size="s" text-color="white">{{ subtask.state }}</q-chip>
-                </q-item-label>
-                <q-item-label>
-                  {{ subtask.title }}
-                </q-item-label>
-
-              </q-item-section>
-            </q-item>
-          </q-list>
-
+          <tm-task-description :task="selectedTask" :key="selectedTask?.uiKey ? selectedTask.uiKey :'view0'"  @task-updated="updateAndShowTask(selectedTask)" />
         </q-tab-panel>
         <q-tab-panel name="tabFilters" >
-          <b>Tags</b>
+          <b>Filter by Tag</b>
           <q-list dense>
             <q-item v-for="tag in tagsNoSystem" :key="tag.idTag" tag="label" v-ripple>
               <q-item-section no-wrap>
@@ -207,6 +183,16 @@
             <q-date v-model="selectedDaysStartOrDue" range today-btn
                     :events="getCalendarActivity" :event-color="getCalendarActivityColor" />
           </div>
+          <br><br>
+          <q-input v-model="searchText" debounce="1000" type="search" label="Filter Tasks containing..." dense>
+            <template v-slot:append>
+              <q-icon v-if="searchText !== ''" name="close" @click="searchText='';doSearch()" class="cursor-pointer" />
+            </template>
+            <template v-slot:after>
+              <q-btn icon="filter_alt" @click="doSearch" dense />
+            </template>
+          </q-input>
+
 
         </q-tab-panel>
         <q-tab-panel name="tabTodayTimeline" >
@@ -234,6 +220,7 @@
                     :y="timelineObject.getIntervalY(interval)"
                     width="100%"
                     :fill="interval.color"
+                    :fill-opacity="interval?.tentative ? '70%': '100%'"
                     stroke="white"
                     :height="timelineObject.getIntervalHeight(interval)"
                     :title="interval.task" />
@@ -251,8 +238,38 @@
           </div>
 
         </q-tab-panel>
-        <q-tab-panel name="tabCalendar" >
+        <q-tab-panel name="tabQueue" >
+          <b>Task Queue</b>
+          <div class="queueContainer"
+               @dragover="dragOverQueue($event)" @dragleave="dragLeaveQueue($event)" @drop="dropTaskonQueue($event)">
+            <div v-if="taskQueue == null || taskQueue.length===0">
+            Drop Tasks or subtask here to track "what's next"
+            </div>
+            <div v-for="task in taskQueue" :key="task.idTask">
+              <TMTask :task="task" :id="`queue-task-card-${task.idTask}`" @select="(t)=>{queueSelectedTask=t;openSearchResult(t);}" />
+            </div>
+            <q-btn-dropdown color="primary" label="Queue Actions" :disable="queueSelectedTask==null" auto-close>
+              <q-list>
+                <q-item clickable v-close-popup @click="queueRemoveElement">
+                  <q-item-section>
+                    <q-item-label>Remove</q-item-label>
+                  </q-item-section>
+                </q-item>
 
+                <q-item clickable v-close-popup @click="queueMoveToTop">
+                  <q-item-section>
+                    <q-item-label>Move to top</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item clickable v-close-popup @click="queueMoveToBottom">
+                  <q-item-section>
+                    <q-item-label>Move to bottom</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+          </div>
         </q-tab-panel>
       </q-tab-panels>
     </q-drawer>
@@ -296,34 +313,11 @@
 
 
         <q-tabs v-model="rightDrawerTab" shrink  dense indicator-color="white" v-if="rightDrawerOpen">
-          <q-tab name="tabSummary" icon="info" />
-          <q-tab name="tabFilters" icon="filter_alt" />
+          <q-tab name="tabSummary" icon="info"  />
           <q-tab name="tabTodayTimeline" icon="today" />
-          <q-tab name="tabCalendar" icon="calendar_month" />
+          <q-tab name="tabQueue" icon="list" />
+          <q-tab name="tabFilters" icon="filter_alt" />
         </q-tabs>
-        <q-input v-model="searchText" debounce="1000"  type="search" input-style="color:white;"  label="Search" color="white" label-color="white" dense class="q-ml-md text-white" />
-        <q-btn-dropdown dropdown-icon="search" dense auto-close @click="doSearch">
-          <div>
-            <q-list bordered>
-              <q-item v-for="result in searchResults" :key="result.idTask" clickable v-ripple @click="openSearchResult(result)" >
-                <q-item-section avatar>
-                  <q-avatar>
-                    <img src="../../public/subtask.png" style="width: 16px; height: 16px;">
-                  </q-avatar>
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label >
-                    {{ getSearchResultLabel(result) }}
-                    <q-chip color="primary" dense square size="s" text-color="white">{{ result.state }}</q-chip>
-                  </q-item-label>
-                  <q-item-label caption >
-                    {{ getSearchResultDescription(result) }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-        </q-btn-dropdown>
 
         </q-toolbar>
     </q-footer>
@@ -537,6 +531,20 @@ div.dowHeader{
   stroke: black;
 }
 
+div.queueContainer {
+  border: darkgray 1px dashed;
+  min-height: 400px;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+div.queueDragOverContainer {
+  border: yellow 1px dashed;
+  min-height: 400px;
+  padding: 8px;
+  margin-top: 8px;
+}
+
 @media (prefers-color-scheme: dark) {
   .timeLine {
     font-family: Arial, Helvetica, sans-serif;
@@ -558,9 +566,17 @@ div.dowHeader{
 import {ref, reactive, provide, watch, onBeforeMount, onMounted, computed, triggerRef} from 'vue'
 import { callApi, callApiLogin, callLogout, Timeline  } from 'src/common'
 import { useSessionStore } from 'stores/user_session';
+import { useUISessionStore } from 'stores/ui_state';
 import { useRouter } from "vue-router";
+import TMTask from "components/tmTask.vue";
+import TmTaskDescription from "components/tmTaskDescription.vue";
 const router = useRouter();
 const store = useSessionStore()
+const uiStore = useUISessionStore()
+import {
+  BoardTask,
+  allTaskMap
+} from 'src/commonObjects'
 
 defineOptions({
   name: 'MainLayout'
@@ -596,15 +612,15 @@ provide('headerIconShow' ,headerIconShow)
 provide('headerTitle', headerTitle)
 provide('leftDrawerOpen', leftDrawerOpen)
 provide('rightDrawerOpen', rightDrawerOpen)
-const rightDrawerContent = ref("")
-const rightDrawerContent2 = ref("")
-const rightDrawerHeader = ref("")
-const rightDrawerSubtasks = ref([])
 const showSubtaskNumber = ref(0)
-provide('rightDrawerContent', rightDrawerContent)
-provide('rightDrawerContent2', rightDrawerContent2)
-provide('rightDrawerHeader', rightDrawerHeader)
-provide('rightDrawerSubtasks', rightDrawerSubtasks)
+//const rightDrawerContent = ref("")
+//const rightDrawerContent2 = ref("")
+//const rightDrawerHeader = ref("")
+//const rightDrawerSubtasks = ref([])
+//provide('rightDrawerContent', rightDrawerContent)
+//provide('rightDrawerContent2', rightDrawerContent2)
+//provide('rightDrawerHeader', rightDrawerHeader)
+//provide('rightDrawerSubtasks', rightDrawerSubtasks)
 let searchText = ref("")
 const credsUsername = ref("");
 const credsPassword = ref("");
@@ -614,6 +630,13 @@ let selectedTask = ref()
 let timelineObject = ref(null)
 let timelineObjectHor = ref(null)
 let tentativePeriod = null
+let previousUIState = {
+  selectedTask: {},
+  pomodoroSession: 0,
+  pomodoroIndex: 0,
+}
+let taskQueue = ref([])
+let queueSelectedTask = ref(null)
 
 provide('globalSelectedTask', selectedTask)
 
@@ -823,41 +846,41 @@ function openPage(page, title){
   window.electronAPI.openPage(page)
 }
 
-function getCalendarForTask(aDate){
-  if (selectedTask.value == null){
-    return false
-  }
-  else {
-    let events= selectedTask.value.daysWorked
-    if (selectedTask.value.dueDate){
-      console.log("due")
-      console.log(selectedTask.value.dueDate.substring(0,10))
-      events.push(selectedTask.value.dueDate.substring(0,10).replaceAll('-','/'))
-    }
-    if (selectedTask.value.estimatedStartDate){
-      console.log("start")
-      console.log(selectedTask.value.estimatedStartDate.substring(0,10))
-      events.push(selectedTask.value.estimatedStartDate.substring(0,10).replaceAll('-','/'))
-    }
-    return events.includes(aDate)
-  }
-
-}
-
-function getTaskColor(aDate){
-  let events= selectedTask.value.daysWorked
-  if (selectedTask.value.dueDate && selectedTask.value.dueDate.substring(0,10).replaceAll('-','/')===aDate){
-    console.log("due")
-    console.log(selectedTask.value.dueDate)
-    return "red"
-  }
-  if (selectedTask.value.estimatedStartDate && selectedTask.value.estimatedStartDate.substring(0,10).replaceAll('-','/')===aDate){
-    console.log("start")
-    console.log(selectedTask.value.estimatedStartDate)
-    return "green"
-  }
-  return "blue"
-}
+// function getCalendarForTask(aDate){
+//   if (selectedTask.value == null){
+//     return false
+//   }
+//   else {
+//     let events= selectedTask.value.daysWorked
+//     if (selectedTask.value.dueDate){
+//       console.log("due")
+//       console.log(selectedTask.value.dueDate.substring(0,10))
+//       events.push(selectedTask.value.dueDate.substring(0,10).replaceAll('-','/'))
+//     }
+//     if (selectedTask.value.estimatedStartDate){
+//       console.log("start")
+//       console.log(selectedTask.value.estimatedStartDate.substring(0,10))
+//       events.push(selectedTask.value.estimatedStartDate.substring(0,10).replaceAll('-','/'))
+//     }
+//     return events.includes(aDate)
+//   }
+//
+// }
+//
+// function getTaskColor(aDate){
+//   let events= selectedTask.value.daysWorked
+//   if (selectedTask.value.dueDate && selectedTask.value.dueDate.substring(0,10).replaceAll('-','/')===aDate){
+//     console.log("due")
+//     console.log(selectedTask.value.dueDate)
+//     return "red"
+//   }
+//   if (selectedTask.value.estimatedStartDate && selectedTask.value.estimatedStartDate.substring(0,10).replaceAll('-','/')===aDate){
+//     console.log("start")
+//     console.log(selectedTask.value.estimatedStartDate)
+//     return "green"
+//   }
+//   return "blue"
+// }
 
 watch(
   rightDrawerWidth,
@@ -966,6 +989,28 @@ watch(
   }
 )
 
+watch(
+  currentBoard,
+  async (newVal, oldVal) =>{
+    queueSelectedTask.value=null
+    let boardQueue=[]
+    let queue = await callApi('GET', `user/boards/${newVal}/queue/`)
+    if (queue==null || queue.queue==null){
+      taskQueue.value=boardQueue
+      return
+    }
+    for(let element of queue.queue){
+      if (!allTaskMap.has(element)){
+        console.log('There is no task map for element in queue', element)
+        continue
+      }
+      let theTask = allTaskMap.get(element)
+      boardQueue.push(theTask)
+    }
+    taskQueue.value=boardQueue
+  }
+)
+
 function addClassToElement(element, aClass){
   let el = document.getElementById(element)
   if (el!=null) {
@@ -983,8 +1028,12 @@ function removeClassFromElement(element, aClass){
 async function doSearch(){
   boardExecuteOp.value={}
   console.log(`Searching for ${searchText.value}...`)
-  const params = new URLSearchParams({term: searchText.value})
-  searchResults.value = await callApi('GET', `user/search?${params}`)
+  //const params = new URLSearchParams({term: searchText.value})
+  //searchResults.value = await callApi('GET', `user/boards/${bo}/search?${params}`)
+  await callApi('POST', `user/boards/${currentBoard.value}/search`, {term: searchText.value})
+  if (router.currentRoute.value.fullPath.startsWith('/boards/')) {
+    boardExecuteOp.value={op: "refreshData"}
+  }
 }
 
 function getSearchResultLabel(task){
@@ -999,12 +1048,12 @@ function getSearchResultDescription(task){
 async function openSearchResult(task){
   console.log('Showing search result')
   console.log(task)
-  if (currentBoard.value !== task.idBoard){
-    console.log(`Navigating to /boards/${task.idBoard}`)
-    await router.push({path: `/boards/${task.idBoard}`}) //, query: params
-    await new Promise(r => setTimeout(r, 500));
-  }
-  boardExecuteOp.value={op: "showTask", value: task.hierarchy}
+  // if (currentBoard.value !== task.idBoard){
+  //   console.log(`Navigating to /boards/${task.idBoard}`)
+  //   await router.push({path: `/boards/${task.idBoard}`}) //, query: params
+  //   await new Promise(r => setTimeout(r, 500));
+  // }
+  boardExecuteOp.value={op: "showTask", value: task.idTask}
 }
 
 function selectedTaskHasTag(tag){
@@ -1019,6 +1068,19 @@ async function addTag2SelectedTask(tag){
   selectedTask.value.idTags.push(tag.idTag)
 }
 
+async function pomodoroOnTimerClick(task) {
+  // ...
+  let workingToday2 = await callApi("GET", 'user/spent_time/today')
+  setWorkingToday(workingToday2)
+}
+
+uiStore.$subscribe(async (mutation, state) => {
+  if (state.pomodoroSession != previousUIState.pomodoroSession){
+    let workingToday2 = await callApi("GET", 'user/spent_time/today')
+    setWorkingToday(workingToday2)
+  }
+})
+
 async function removeTagFromSelectedTask(tag){
   if (selectedTask.value==null){
     return
@@ -1026,12 +1088,6 @@ async function removeTagFromSelectedTask(tag){
   await callApi('DELETE', `/user/tasks/${selectedTask.value.idTask}/tags/`, {tag: tag.idTag})
   const index = selectedTask.value.idTags.indexOf(tag.idTag);
   selectedTask.value.idTags = selectedTask.value.idTags.splice(index, 1)
-}
-
-async function pomodoroOnTimerClick(task) {
-  // ...
-  let workingToday2 = await callApi("GET", 'user/spent_time/today')
-  setWorkingToday(workingToday2)
 }
 
 async function pomodoroMenuClick(task) {
@@ -1047,23 +1103,24 @@ function setPomodoroDataValues(data){
     pomodoroData.fullSessionDuration= data.fullSessionDuration
     pomodoroData.notifiedEndOfBreak= data.notifiedEndOfBreak
     pomodoroData.breakExpiredATimeAgo= data.breakExpiredATimeAgo
+    pomodoroData.task= data.task
 }
 
-async function calendarSetStartDate(){
-  let data = {
-    idBoard: currentBoard.value,
-    estimatedStartDate: selectedDay.value.replaceAll("/", "-")+ " 12:00:00"
-  }
-  await callApi("POST", `user/tasks/${selectedTask.value.idTask}`, data)
-}
-
-async function calendarSetDueDate(){
-  let data = {
-    idBoard: currentBoard.value,
-    dueDate: selectedDay.value.replaceAll("/", "-")+ " 12:00:00"
-  }
-  await callApi("POST", `user/tasks/${selectedTask.value.idTask}`, data)
-}
+// async function calendarSetStartDate(){
+//   let data = {
+//     idBoard: currentBoard.value,
+//     estimatedStartDate: selectedDay.value.replaceAll("/", "-")+ " 12:00:00"
+//   }
+//   await callApi("POST", `user/tasks/${selectedTask.value.idTask}`, data)
+// }
+//
+// async function calendarSetDueDate(){
+//   let data = {
+//     idBoard: currentBoard.value,
+//     dueDate: selectedDay.value.replaceAll("/", "-")+ " 12:00:00"
+//   }
+//   await callApi("POST", `user/tasks/${selectedTask.value.idTask}`, data)
+// }
 
 function getCalendarActivity(aDate){
   if (!daysWithActivity.value){
@@ -1104,19 +1161,117 @@ function openTaskOrSubTask(task){
   showSubtaskNumber.value = task.idTask
 }
 
+
+function dragOverQueue(event){
+  if (event.preventDefault) {
+    event.preventDefault();
+  }
+  console.log(event.currentTarget.id)
+  event.currentTarget.classList.add("queueDragOverContainer")
+  event.currentTarget.classList.remove("queueContainer")
+}
+
+function dragLeaveQueue(event){
+  if (event.preventDefault) {
+    event.preventDefault();
+  }
+  console.log(event.currentTarget.id)
+  event.currentTarget.classList.remove("queueDragOverContainer")
+  event.currentTarget.classList.add("queueContainer")
+
+}
+
+function saveQueue(){
+  let ids = []
+  for(let task of taskQueue.value) {
+    ids.push(task.idTask)
+  }
+  callApi('POST', `user/boards/${currentBoard.value}/queue`, {queue: ids})
+}
+
+function dropTaskonQueue(event){
+  if (event.preventDefault) {
+    event.preventDefault();
+  }
+  let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'));
+  console.log('Dropped on queue')
+  console.log(data);
+  let theTask = allTaskMap.get(data.id)
+  console.log(theTask)
+  let element = taskQueue.value.find((task) => task.idTask === theTask.idTask)
+  if (element==null){
+    taskQueue.value.push(theTask)
+  }
+  saveQueue()
+}
+
+function queueRemoveElement(){
+  let id= queueSelectedTask.value.idTask
+  let newList=[]
+  for(let task of taskQueue.value) {
+    if(task.idTask===id){
+      continue
+    }
+    newList.push(task)
+  }
+  taskQueue.value= newList
+  saveQueue()
+}
+
+function queueMoveToTop(){
+  let id= queueSelectedTask.value.idTask
+  let newList=[queueSelectedTask.value]
+  for(let task of taskQueue.value) {
+    if(task.idTask===id){
+      continue
+    }
+    newList.push(task)
+  }
+  taskQueue.value= newList
+  saveQueue()
+}
+
+function queueMoveToBottom(){
+  let id= queueSelectedTask.value.idTask
+  let newList=[]
+  for(let task of taskQueue.value) {
+    if(task.idTask===id){
+      continue
+    }
+    newList.push(task)
+  }
+  newList.push(queueSelectedTask.value)
+  taskQueue.value= newList
+  saveQueue()
+}
+
+
+async function updateAndShowTask(task){
+  console.log('Showing search result')
+  console.log(task)
+  selectedTask.value=null
+  // if (currentBoard.value !== task.idBoard){
+  //   console.log(`Navigating to /boards/${task.idBoard}`)
+  //   await router.push({path: `/boards/${task.idBoard}`}) //, query: params
+  //   await new Promise(r => setTimeout(r, 500));
+  // }
+  boardExecuteOp.value={op: "updateAndShowTask", value: task.idTask}
+}
+
 window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   // console.log('Get message from pomodoro:')
   // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'pomodoroTaskStart':
       console.log('pomodoroTaskStart')
+      pomodoroSessions.value[pomodoroData.session] = false
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
       setTentativeIfNotSet()
+      pomodoroSessions.value[pomodoroData.session] = true;
       break
     case 'updateTimer':
       //console.log('pomodoro tick')
       remainingTime.value = pomodoroMsg.value.remainingTime
-      pomodoroData.task = pomodoroMsg.value.task
       setPomodoroDataValues(pomodoroMsg.value.pomodoroData)
       if (timelineObject.value != null && timelineObjectHor.value != null) {
         timelineObject.value.updateTentativePeriod()

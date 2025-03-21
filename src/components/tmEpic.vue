@@ -8,59 +8,36 @@ const props = defineProps({
     type: Object,
     required: true,
   },
-  boardData: {
-    type: Object,
-    required: true,
-  }
 })
 
 const events = defineEmits([
-  'showEpic',
-  'editEpic',
-  'toggleDetail',
-  'dragStarted',
-  'dragOver',
-  'dragLeave',
-  'drop'
+  'select',
+  'toggleEpic',
 ])
 
 function styleForTask(){
-  let prj = props.boardData.projectsMap.get(props.epic.idProject);
-  return `border: solid 3px ${prj.color}; padding-bottom: 32px;` // ${shadow}; `
+  return `border: solid 3px ${props.epic.color}; padding-bottom: 32px;` // ${shadow}; `
 }
 
 function getTaskMouseOutStyle(){
   return "this.style.borderStyle='none'"
 }
 
-function dragTask(event, task, something){
-
-}
-
-function dragOverTask2(event){
-
-}
-
-function dragLeaveTask2(event){
-
-}
-
-function dropTask2(event){
-
-}
-
 function styleForEpicTab(){
-  let prj = props.boardData.projectsMap.get(props.epic.idProject);
-  return `background-color: ${prj.color}`
+  return `background-color: ${props.epic.color}`
 }
+
+function editEpic(){
+  window.electronAPI.openEpicPage(`board/${props.epic.idBoard}/epic/${props.epic.idEpic}`, null)
+}
+
 
 </script>
 
 <template>
-  <div @click="$emit('show-epic')"
+  <div @click="$emit('select')"
        onmouseover="this.style.borderStyle='dotted'" :onmouseout="getTaskMouseOutStyle()"
-       draggable="true" @dragstart="dragTask($event, task, null)"
-       @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
+       draggable="true"
        class="folder-container"
   >
     <div class="folder-tab" :style="styleForEpicTab()">
@@ -69,19 +46,13 @@ function styleForEpicTab(){
     <div class="folder" :style="styleForTask()">
       <span><b>{{epic.key }}</b><br> </span>
       {{ epic.epic }}
-      <br>({{ boardData.epicTasksMap.get(epic.idEpic).length }} tasks)
+      <br>({{ epic.subTasks.length }} tasks)
       <img src="epic.png" style="position: absolute; left: 4px; bottom: 6px; width:16px; height: 16px"/>
       <img :src="`${epic.priority}.svg`" style="position: absolute; left: 22px; bottom: 6px; width:16px; height: 16px"/>
-      <button @click="$emit('edit-epic')" type="button" title="Edit epic" class="buttonTaskAction" style="bottom: 4px; right: 4px; ">
+      <button @click="editEpic" type="button" title="Edit epic" class="buttonTaskAction" style="bottom: 4px; right: 4px; ">
         <span class="material-icons-outlined material-icons">edit</span>
       </button>
-      <button  @click="$emit('' +
-       '' +
-        '' +
-         '' +
-          '' +
-           '' +
-            'toggle-detail')" :title="epic.expanded ? 'Hide Tasks':'Show Tasks'"
+      <button  @click="$emit('toggle-epic', epic)" :title="epic.expanded ? 'Hide Tasks':'Show Tasks'"
                class="buttonTaskAction" style="right: 28px; bottom: 4px;" >
         <span class="material-icons-outlined material-icons" v-if="!epic.expanded">expand_more</span>
         <span class="material-icons-outlined material-icons" v-if="epic.expanded">expand_less</span>
@@ -102,7 +73,6 @@ button.buttonTaskAction {
 }
 
 .folder-container {
-  //display: flex;
   align-items: left;
   justify-content: center;
   padding-top: 20px;
@@ -118,6 +88,7 @@ button.buttonTaskAction {
   border-bottom-right-radius: 5px;
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
   padding: 4px;
+  background-color: #fff;
 }
 
 .folder-tab {
@@ -130,6 +101,7 @@ button.buttonTaskAction {
   border-top-left-radius: 5px;
   border-top-right-radius: 5px;
   text-align: center;
+  color: white;
 }
 
 .folder-label {
@@ -140,6 +112,12 @@ button.buttonTaskAction {
   font-size: 18px;
   font-weight: bold;
   color: #333;
+}
+
+@media (prefers-color-scheme: dark) {
+  .folder {
+    background-color: #2b2d30;
+  }
 }
 
 </style>
