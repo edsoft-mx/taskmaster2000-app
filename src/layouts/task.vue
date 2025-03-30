@@ -2,7 +2,7 @@
 defineOptions({
   name: 'tm-task'
 });
-import { ref, reactive, defineProps, watch, inject, computed } from 'vue'
+import {ref, reactive, defineProps, watch, inject, computed, onMounted} from 'vue'
 import { callApi } from 'src/common'
 
 const props = defineProps({
@@ -391,7 +391,10 @@ function addItem(checklist){
 
 const newCheckListItem = ref('')
 
-getData()
+onMounted(async ()=> {
+  await getData()
+})
+
 </script>
 
 <template>
@@ -534,7 +537,7 @@ getData()
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>
-                    <q-input v-model="formData.newSubTaskTitle" label="New Subtask" autogrow type="textarea">
+                    <q-input v-model="formData.newSubTaskTitle" label="New Subtask or existing task key. (Press ENTER to add several at once)" autogrow type="textarea">
                       <template v-slot:after>
                         <q-btn label="Add" type="button" size="xs" outline color="primary" @click="addSubtask" />
                       </template>

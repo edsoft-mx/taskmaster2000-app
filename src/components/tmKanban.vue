@@ -392,7 +392,7 @@ function showLess(state){
 </script>
 
 <template>
-  <div class="row" style="min-height: 500px; ">
+  <div class="row">
     <div v-for="state in states" :key="state.state" :class="`col stateColumn state_${state.state.replace(' ','_')}`"
          @dragover="dragOverTask($event)" @dragleave="dragLeaveTask($event)" @drop="dropTask($event)"
          :id="`main_${state.state.replace(' ','_')}`"

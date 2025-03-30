@@ -3,15 +3,15 @@ defineOptions({
   name: 'tm-weekly-timeline'
 });
 
-import {ref, reactive, defineProps, watch, inject, onBeforeMount, onMounted} from 'vue'
+import {ref, reactive, defineProps, watch, inject, onBeforeMount, onMounted, onUnmounted, useTemplateRef} from 'vue'
 import { callApi, Timeline } from 'src/common'
 import Chart from 'chart.js/auto';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 //import { Bar } from 'vue-chartjs'
 //import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 
 //ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
-
-
+Chart.register(ChartDataLabels);
 // let workDayData = reactive({
 //   length: 0,
 //   first: 0,
@@ -28,10 +28,14 @@ import Chart from 'chart.js/auto';
 //   projectTotals: {}
 // })
 
+let inited=false
 let timelineObject = ref(null)
 let onlyBilled = ref(false)
 let includeBreaks = ref(true)
 let chartObject=null
+let dateRange = ref({from: "", to: ""})
+let canvasRefs = useTemplateRef(['canvases'])
+
 
 let chart1Data = {
   labels: [],
@@ -95,8 +99,41 @@ let chart1Options = {
           return title
         }
       }
-    }
-  }
+    },
+    datalabels: {
+      anchor: 'end', // Position the label at the end of the bar
+      align: 'top', // Align the label to the top
+      formatter: (value, context) => {
+        if (context.datasetIndex === context.chart.data.datasets.length - 1) {
+          // Calculate the sum only for the last dataset in the stack
+          let sum = 0;
+          context.chart.data.datasets.forEach((dataset) => {
+            if (dataset.stack === context.dataset.stack) {
+              sum += dataset.data[context.dataIndex];
+            }
+          });
+          let hours = Math.trunc(sum / 60)
+          let minutes = Math.trunc((sum-hours*60) % 60)
+          let title= hours>0 ? `${hours}h`: ''
+          if(minutes!==0){
+            if(title!==''){
+              title+=', '
+            }
+            title+=`${minutes}m`
+          }
+          return title
+        } else {
+          return ''; // Don't show labels for other datasets in the stack
+        }
+      },
+      color: '#a0a0a0', // Customize label color
+      font: {
+        weight: 'bold', // Customize label font
+      }
+    },
+    stacked: true,
+  },
+  stacked: true,
 }
 
 async function createChart(){
@@ -124,13 +161,35 @@ async function createChart(){
   chartObject.options.transitions.resize.animation.duration = 0; // disables the animation for 'active' mode
 }
 
-async function getData() {
+function dateRangeDescr(){
+  return `${dateRange.value.from} - ${dateRange.value.to}`
+}
+
+function formatDate(aDate){
+  let y= aDate.getFullYear()
+  let m= `${aDate.getMonth()+1}`.padStart(2,"0")
+  let d= aDate.getDate()
+  return `${y}/${m}/${d}`
+}
+
+async function getData(dataDateRange=null) {
   let canvas = document.getElementById('canvasTimeline')
   console.log('timeline')
   if (chartObject!=null){
     chartObject.destroy()
   }
-  let currentWeek = await callApi('GET', 'user/spent_time/week')
+  let currentWeek
+  if (dataDateRange==null){
+    let today = new Date();
+    let sevenDaysAgo = new Date(today); // Create a copy of today's date
+    sevenDaysAgo.setDate(today.getDate() - 7); // Subtract 7 days
+    dateRange.value.from= formatDate(sevenDaysAgo);
+    dateRange.value.to= formatDate(today);
+    currentWeek = await callApi('GET', 'user/spent_time/week')
+  }
+  else {
+    currentWeek = await callApi('GET', `user/spent_time/date_range/${dataDateRange.from}/${dataDateRange.to}`)
+  }
   timelineObject.value = new Timeline(
     currentWeek,
     canvas ? canvas.clientHeight : 2300,
@@ -144,6 +203,7 @@ async function getData() {
   await createChart()
   console.log('Done getting weekly data')
   window.document.title = 'Timeline (last 7 days)'
+  inited=true
 }
 
 watch(
@@ -155,7 +215,7 @@ watch(
     }
     chart1Data.datasets[0].hidden = newVal
     console.log(newVal)
-    await getData()
+    await getData(dateRange.value)
   }
 )
 
@@ -166,17 +226,138 @@ watch(
       console.log('skipping reload')
       return
     }
-    await getData()
+    await getData(dateRange.value)
   }
 )
 
+watch(
+  () => dateRange.value,
+  async(newVal, oldVal) =>{
+    if (!inited){
+      return
+    }
+    await getData(dateRange.value)
+  }
+)
+
+function getCanvasContainer(element) {
+  // Check if the element is an SVG element.
+  if (element instanceof SVGElement) {
+    // Traverse up the DOM tree until we find the canvas element.
+    let currentElement = element;
+    while (currentElement) {
+      if (currentElement.tagName === 'svg') {
+        return currentElement; // Found the canvas container.
+      }
+      currentElement = currentElement.parentElement;
+    }
+  }
+  return null; // Canvas container not found.
+}
+
+function isWithinTimeInterval(instant, interval) {
+  return Number(interval.start) <= instant && instant <= Number(interval.end)
+}
+
+function toRawObject(reactiveObject) {
+  if (!reactiveObject) {
+    return reactiveObject; // Handle null or undefined inputs
+  }
+
+  if (typeof reactiveObject !== 'object') {
+    return reactiveObject; // Handle primitive types
+  }
+
+  if (Array.isArray(reactiveObject)) {
+    return reactiveObject.map(item => toRawObject(item));
+  }
+
+  const rawObject = {};
+  for (const key in reactiveObject) {
+    if (Object.prototype.hasOwnProperty.call(reactiveObject, key)) {
+      // Vue 3: use toRaw()
+      if(typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null && '__v_raw' in reactiveObject[key]){
+        rawObject[key] = Vue.toRaw(reactiveObject[key]);
+      } else if (typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null) {
+        rawObject[key] = toRawObject(reactiveObject[key]);
+      } else {
+        rawObject[key] = reactiveObject[key];
+      }
+    }
+  }
+  return rawObject;
+}
+
+function handleCanvasClick(event){
+  let c = document.getElementById(event.target.id)
+  if (!c){
+    c= getCanvasContainer(event.target)
+  }
+  const rect = c.getBoundingClientRect();
+  const y = event.clientY - rect.top
+  let theDay=c.id.substring(6)
+  let data= timelineObject.value.workDayData
+  let length = data.last - data.first
+  let conversion = length / data.canvasHeight
+  let value=  (conversion * y) + data.first
+  console.log(value)
+  console.log(timelineObject.value.workDayData)
+  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+    // Before the first activity
+    console.log('Before first activity')
+  }
+  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+    //After last activity
+    console.log('After last activity')
+  }
+  else {
+    let eventIndex=0
+    for (let ev of theDayData.intervals_with_idle){
+      console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+      if (isWithinTimeInterval(value, ev)){
+        console.log('Event found!')
+        console.log(ev.taskKey +": "+ ev.task)
+        let data = toRawObject(timelineObject.value.events)
+        console.log('no proxy data?')
+        console.log(data)
+        window.electronAPI.shareTimeline(data)
+        window.electronAPI.openPage(`timeEntry`, `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`)
+        break
+      }
+      eventIndex++
+    }
+  }
+}
+
 onMounted(async ()=> {
   await getData()
+  if (canvasRefs.value){
+    //console.log(canvasRefs.value)
+    for (let c of canvasRefs.value){
+      c.addEventListener('dblclick', handleCanvasClick)
+    }
+  }
+})
+
+onUnmounted(async ()=> {
+  if (canvasRefs.value){
+    for (let c of canvasRefs.value){
+      c.removeEventListener('dblclick', handleCanvasClick)
+    }
+  }
+})
+
+window.electronAPI.onRefreshTimeline(async() => {
+  await getData();
 })
 
 </script>
 
 <template>
+  <q-btn-dropdown :label="dateRangeDescr()" >
+    <q-date v-model="dateRange" range />
+  </q-btn-dropdown>
   <q-toggle v-model="includeBreaks" label="Include break periods" />
   <q-toggle v-model="onlyBilled" label="Only billed projects" />
   <div style="width: 100%;">
@@ -198,8 +379,7 @@ onMounted(async ()=> {
     </div>
     <div v-for="dow in timelineObject?.workDayData.daysToShow" :key="dow" class="flex-items">
       <div class="dowHeader">{{ timelineObject.workDayData.dayNameMap.get(dow) }}</div>
-
-      <div class="canvasContainer"><svg class="canvas">
+      <div class="canvasContainer"><svg class="canvas" ref="canvases" :id="`canvas${dow}`" >
         <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
               :y2="timelineObject.tickYPosition(tick)" />
         <line v-if="dow == timelineObject.workDayData.todayKey" stroke="red"
@@ -330,6 +510,7 @@ svg.canvas {
 
 div.dowHeader{
   text-align: center;
+  max-height:20px;
 }
 
 .taskTitle {

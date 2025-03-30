@@ -152,7 +152,11 @@
     <q-drawer v-model="rightDrawerOpen" side="right" bordered :width="rightDrawerWidth">
       <q-tab-panels v-model="rightDrawerTab" animated v-if="rightDrawerOpen">
         <q-tab-panel name="tabSummary" class="summary" >
-          <tm-task-description :task="selectedTask" :key="selectedTask?.uiKey ? selectedTask.uiKey :'view0'"  @task-updated="updateAndShowTask(selectedTask)" />
+          <tm-task-description :task="selectedTask"
+                               :key="selectedTask?.uiKey ? selectedTask.uiKey :'view0'"
+                               @task-updated="updateAndShowTask(selectedTask)"
+                               @open-task="openSearchResult"
+          />
         </q-tab-panel>
         <q-tab-panel name="tabFilters" >
           <b>Filter by Tag</b>
@@ -209,9 +213,9 @@
                 </svg>
               </div>
             </div>
-            <div v-for="dow in timelineObject.workDayData.daysToShow" :key="dow" class="flex-items">
+            <div v-for="dow in timelineObject?.workDayData.daysToShow" :key="dow" class="flex-items">
               <div class="dowHeader">{{ timelineObject.workDayData.dayNameMap.get(dow) }}</div>
-              <div class="canvasContainer"><svg class="canvas">
+              <div class="canvasContainer"><svg class="canvas" ref="canvases" :id="`canvas${dow}`">
                 <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
                       :y2="timelineObject.tickYPosition(tick)" />
                 <g v-for="interval in timelineObject.workDayIntervals(dow)" :key="interval.id">
@@ -246,7 +250,7 @@
             Drop Tasks or subtask here to track "what's next"
             </div>
             <div v-for="task in taskQueue" :key="task.idTask">
-              <TMTask :task="task" :id="`queue-task-card-${task.idTask}`" @select="(t)=>{queueSelectedTask=t;openSearchResult(t);}" />
+              <TMTask :task="task" :id="`queue-task-card-${task.idTask}`" @select="(t)=>{onQueueTaskSelected(t);openSearchResult(t);}" />
             </div>
             <q-btn-dropdown color="primary" label="Queue Actions" :disable="queueSelectedTask==null" auto-close>
               <q-list>
@@ -427,7 +431,7 @@ a {
   padding: 4px;
 }
 
-.flex-items:nth-child(1) {
+.flex-items {
   display: block;
   flex-grow: 1;
   flex-shrink: 1;
@@ -436,68 +440,77 @@ a {
   order: 0;
 }
 
-.flex-items:nth-child(2) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
-
-.flex-items:nth-child(3) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
-
-.flex-items:nth-child(4) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
-
-.flex-items:nth-child(5) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
-
-.flex-items:nth-child(6) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
-
-.flex-items:nth-child(7) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
-
-.flex-items:nth-child(8) {
-  display: block;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-self: auto;
-  order: 0;
-}
+/*/.flex-items:nth-child(1) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(2) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(3) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(4) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(5) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(6) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(7) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}
+//
+//.flex-items:nth-child(8) {
+//  display: block;
+//  flex-grow: 1;
+//  flex-shrink: 1;
+//  flex-basis: auto;
+//  align-self: auto;
+//  order: 0;
+//}*/
 
 div.canvasContainer {
   height: 2300px;
@@ -538,6 +551,18 @@ div.queueContainer {
   margin-top: 8px;
 }
 
+.queueSelectedTask{
+  /* box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75) */
+  background-color: lightyellow;
+  border-radius: 6px;
+  min-height: 60px;
+  padding: 4px;
+  margin-bottom: 4px;
+  margin-top: 4px;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
 div.queueDragOverContainer {
   border: yellow 1px dashed;
   min-height: 400px;
@@ -557,13 +582,37 @@ div.queueDragOverContainer {
     stroke: white;
   }
 
+  .queueSelectedTask{
+    /* box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75) */
+    background-color: #5b5c67;
+    border-radius: 6px;
+    min-height: 60px;
+    padding: 4px;
+    margin-bottom: 4px;
+    margin-top: 4px;
+    margin-left: 2px;
+    margin-right: 2px;
+  }
+
 }
 
 
 </style>
 
 <script setup>
-import {ref, reactive, provide, watch, onBeforeMount, onMounted, computed, triggerRef} from 'vue'
+import {
+  ref,
+  reactive,
+  provide,
+  watch,
+  onBeforeMount,
+  onMounted,
+  computed,
+  triggerRef,
+  useTemplateRef,
+  nextTick,
+  onUnmounted
+} from 'vue'
 import { callApi, callApiLogin, callLogout, Timeline  } from 'src/common'
 import { useSessionStore } from 'stores/user_session';
 import { useUISessionStore } from 'stores/ui_state';
@@ -629,6 +678,8 @@ let allProjects = []
 let selectedTask = ref()
 let timelineObject = ref(null)
 let timelineObjectHor = ref(null)
+let canvasRefs = useTemplateRef('canvases')
+let canvasInited=false
 let tentativePeriod = null
 let previousUIState = {
   selectedTask: {},
@@ -665,6 +716,7 @@ const pomodoroSessions = ref([true, false, false, false, false, false, false, fa
 
 onBeforeMount(()=>{
   console.log('Before Mount')
+  canvasInited=false
   let sp=new URLSearchParams(location.search)
   let pageParam = sp.get('page')
   sp.delete('page')
@@ -674,11 +726,37 @@ onBeforeMount(()=>{
   }
 })
 
-onMounted(()=>{
+onMounted(async ()=>{
   console.log('mounted')
-  getData()
+  await getData()
 })
 
+onUnmounted(async ()=> {
+  if (canvasRefs.value){
+    for (let c of canvasRefs.value){
+      c.removeEventListener('dblclick', handleCanvasClick)
+      c.removeEventListener('dblclick', handleCanvasDblClick)
+    }
+  }
+})
+
+watch(rightDrawerTab, async ()=>{
+  if (!canvasInited){
+    await nextTick()
+    // console.log('pre-canvas-ref code')
+    // console.log(canvasRefs.value)
+    // console.log(timelineObject.value.workDayData.daysToShow)
+    if (canvasRefs.value){
+      // console.log('here')
+      for (let c of canvasRefs.value){
+        // console.log(c)
+        c.addEventListener('dblclick', handleCanvasDblClick)
+        c.addEventListener('click', handleCanvasClick)
+      }
+    }
+    canvasInited=true
+  }
+})
 
 function getIntervalX(interval) {
   let x = (interval.start - workDayData.first) * workDayData.conversion
@@ -838,7 +916,7 @@ async function getData() {
   allProjects = await callApi('GET', 'user/projects')
   let workingToday = await callApi("GET", 'user/spent_time/today')
   setWorkingToday(workingToday)
-
+  console.log('end getData()')
   loadComplete=true
 }
 
@@ -1258,13 +1336,164 @@ async function updateAndShowTask(task){
   boardExecuteOp.value={op: "updateAndShowTask", value: task.idTask}
 }
 
+function onQueueTaskSelected(task){
+  if (queueSelectedTask.value && document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`)){
+    document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`).classList.remove("queueSelectedTask")
+    document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`).classList.add("task")
+  }
+  queueSelectedTask.value=task
+  document.getElementById(`queue-task-card-${task.idTask}`).classList.add("queueSelectedTask")
+  document.getElementById(`queue-task-card-${task.idTask}`).classList.remove("task")
+}
+
+function getCanvasContainer(element) {
+  // Check if the element is an SVG element.
+  if (element instanceof SVGElement) {
+    // Traverse up the DOM tree until we find the canvas element.
+    let currentElement = element;
+    while (currentElement) {
+      if (currentElement.tagName === 'svg') {
+        return currentElement; // Found the canvas container.
+      }
+      currentElement = currentElement.parentElement;
+    }
+  }
+  return null; // Canvas container not found.
+}
+
+function isWithinTimeInterval(instant, interval) {
+  return Number(interval.start) <= instant && instant <= Number(interval.end)
+}
+
+function unwrapVueRef(ref) {
+  if (ref && typeof ref === 'object' && '$raw' in ref) {
+    return ref.$raw;
+  }
+  return ref;
+}
+
+function toRawObject(reactiveObject) {
+  if (!reactiveObject) {
+    return reactiveObject; // Handle null or undefined inputs
+  }
+
+  if (typeof reactiveObject !== 'object') {
+    return reactiveObject; // Handle primitive types
+  }
+
+  if (Array.isArray(reactiveObject)) {
+    return reactiveObject.map(item => toRawObject(item));
+  }
+
+  const rawObject = {};
+  for (const key in reactiveObject) {
+    if (Object.prototype.hasOwnProperty.call(reactiveObject, key)) {
+      // Vue 3: use toRaw()
+      if(typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null && '__v_raw' in reactiveObject[key]){
+        rawObject[key] = Vue.toRaw(reactiveObject[key]);
+      } else if (typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null) {
+        rawObject[key] = toRawObject(reactiveObject[key]);
+      } else {
+        rawObject[key] = reactiveObject[key];
+      }
+    }
+  }
+  return rawObject;
+}
+
+function handleCanvasDblClick(event){
+  let c = document.getElementById(event.target.id)
+  if (!c){
+    c= getCanvasContainer(event.target)
+  }
+  const rect = c.getBoundingClientRect();
+  const y = event.clientY - rect.top
+  let theDay=c.id.substring(6)
+  let data= timelineObject.value.workDayData
+  let length = data.last - data.first
+  let conversion = length / data.canvasHeight
+  let value=  (conversion * y) + data.first
+  // console.log(value)
+  // console.log(timelineObject.value.workDayData)
+  // console.log(theDay)
+  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+  // console.log(theDayData)
+  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+    // Before the first activity
+    console.log('Before first activity')
+  }
+  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+    //After last activity
+    console.log('After last activity')
+  }
+  else {
+    let eventIndex=0
+    for (let ev of theDayData.intervals_with_idle){
+      // console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+      if (isWithinTimeInterval(value, ev)){
+        // console.log('Event found!')
+        // console.log(ev.taskKey +": "+ ev.task)
+        let data = toRawObject(timelineObject.value.events)
+        // console.log('no proxy data?')
+        // console.log(data)
+        window.electronAPI.shareTimeline(data)
+        window.electronAPI.openPage(`timeEntry`, `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`)
+        break
+      }
+      eventIndex++
+    }
+  }
+}
+
+function handleCanvasClick(event){
+  let c = document.getElementById(event.target.id)
+  if (!c){
+    c= getCanvasContainer(event.target)
+  }
+  const rect = c.getBoundingClientRect();
+  const y = event.clientY - rect.top
+  let theDay=c.id.substring(6)
+  let data= timelineObject.value.workDayData
+  let length = data.last - data.first
+  let conversion = length / data.canvasHeight
+  let value=  (conversion * y) + data.first
+  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+    // Before the first activity
+    console.log('Before first activity')
+  }
+  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+    //After last activity
+    console.log('After last activity')
+  }
+  else {
+    let eventIndex=0
+    for (let ev of theDayData.intervals){
+      console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+      if (isWithinTimeInterval(value, ev)){
+        console.log('Event found!')
+        console.log(currentBoard.value)
+        console.log(ev.taskKey +": "+ ev.taskId)
+        if (!allTaskMap.has(ev.taskId)){
+          alert(`${ev.taskKey} (${ev.task}): Not found on the board "${headerTitle.value}"`)
+          return
+        }
+        let theTask= allTaskMap.get(ev.taskId)
+        openSearchResult(theTask)
+        break
+      }
+      eventIndex++
+    }
+  }
+}
+
 window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   // console.log('Get message from pomodoro:')
   // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'pomodoroTaskStart':
       console.log('pomodoroTaskStart')
-      pomodoroSessions.value[pomodoroData.session] = false
+      pomodoroSessions.value=[false, false, false, false, false, false, false, false]
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
       setTentativeIfNotSet()
       pomodoroSessions.value[pomodoroData.session] = true;

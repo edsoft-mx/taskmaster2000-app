@@ -37,8 +37,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openTaskPage: (page, params) => ipcRenderer.send('tm2000-openTaskPage', page, params),
   openEpicPage: (page, params) => ipcRenderer.send('tm2000-openEpicPage', page, params),
   saveConfiguration: (config) => ipcRenderer.send('save-configuration', config),
+  shareTimeline: (config) => ipcRenderer.send('share-timeline', config),
+  getSharedTimeline: (callback) => ipcRenderer.invoke('function:getSharedTimeline'),
   getConfiguration: (callback) => ipcRenderer.invoke('function:getConfiguration'),
+  getLocalNote: (notePath)=>ipcRenderer.invoke('function:getLocalNote'),
   onRefresh: (callback) => ipcRenderer.on('updateBoard', () => callback()),
+  onRefreshTimeline: (callback) => ipcRenderer.on('updateTimeline', () => callback()),
 
   pomodoroTimerClick: (task) => ipcRenderer.send('pomodoro-timer-click', task),
   pomodoroMenuClick: (task) => ipcRenderer.send('pomodoro-menu-click'),

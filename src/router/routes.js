@@ -43,6 +43,12 @@ const routes = [
     name: 'epicEditor',
     props: true
   },
+  {
+    path: '/timeEntry',
+    component: ()=> import('layouts/timeEntry.vue'),
+    name: 'timeEntry',
+    props: true
+  },
   // Always leave this as last one,
   // but you can also remove it
   {

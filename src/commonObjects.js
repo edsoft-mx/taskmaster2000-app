@@ -177,6 +177,8 @@ class BoardTask {
     this.taskType= data.taskType
     this.title= data.title
     this.xtraData= data.xtraData
+    this.timeSpent= data.timeSpent
+    this.timeSpentToday= data.timeSpentToday
   }
 
   //updateData(newData, parentTaskId=null){

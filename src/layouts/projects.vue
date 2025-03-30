@@ -51,7 +51,8 @@ const projectData = reactive({
   name: '',
   projectKey: '',
   enableBilling: false,
-  color: "#0880c0"
+  color: "#0880c0",
+  notesDirectory: ""
 })
 
 const formStyle = ref({
@@ -114,6 +115,7 @@ function editProject(event, row, index){
   projectData.projectKey= row.projectKey;
   projectData.enableBilling= row.enableBilling;
   projectData.color= row.color;
+  projectData.notesDirectory= row.notesDirectory
   console.log(row)
 }
 
@@ -129,6 +131,7 @@ async function submitProject() {
     projectKey: projectData.projectKey,
     enableBilling: projectData.enableBilling,
     color: projectData.color,
+    notesDirectory: projectData.notesDirectory,
   }
   switch (formOp.value) {
     case "add":
@@ -179,6 +182,7 @@ getData();
                 </q-icon>
               </template>
             </q-input>
+            <q-input v-model="projectData.notesDirectory" label="External Notes Directory" />
           </q-card-section>
           <q-separator />
           <q-card-actions align="right">

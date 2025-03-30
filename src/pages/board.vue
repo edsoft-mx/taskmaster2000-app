@@ -4,7 +4,7 @@ import TmTaskDescription from "components/tmTaskDescription.vue";
 defineOptions({
   name: 'tm-board'
 });
-import {ref, reactive, defineProps, watch, inject, computed, onMounted, triggerRef} from 'vue'
+import {ref, reactive, defineProps, watch, inject, computed, onMounted, triggerRef, nextTick} from 'vue'
 import { callApi } from 'src/common'
 import {
   allStates,
@@ -249,11 +249,11 @@ watch(
     () => props.executeOp,
   async (newVal, oldVal) =>  {
       if (newVal.op==='showTask'){
-        showSearchedTask(newVal.value, this)
+        await showSearchedTask(newVal.value)
       }
       if (newVal.op==='updateAndShowTask'){
         await updateTask(newVal.value)
-        await showSearchedTask(newVal.value, this)
+        await showSearchedTask(newVal.value)
       }
       else if (newVal.op==='refreshData'){
         let scroll = window.scrollY
@@ -312,10 +312,11 @@ function getStateId(state){
 //   return result
 // }
 
-function showSearchedTask(idTask, context){
+async function showSearchedTask(idTask, tryNumber=1){
   if (!idTask){
     return
   }
+  console.log('showSearchedTask')
   let task = BoardTask.allTasks.find(t => t.idTask == idTask)
   if (document.getElementById(`task-card-${idTask}`)!=null){
     //task is visible
@@ -333,7 +334,22 @@ function showSearchedTask(idTask, context){
   else {
     console.log('Task is not visible, trying to show it...')
     if (!maximizedTask.value){
-      alert("Task is not visible")
+      if (tryNumber===1){
+        if (task.parentTask && !task.parentTask.expanded){
+          task.parentTask.expanded = true
+          if (task.parentTask.idEpic && !task.parentTask.epic.expanded){
+            task.parentTask.epic.expanded = true
+          }
+        }
+        if (task.idEpic && !task.epic.expanded){
+          task.epic.expanded = true
+        }
+        await nextTick()
+        await showSearchedTask(idTask, 2)
+      }
+      else{
+        alert("Task is not visible")
+      }
     }
     else{
       maximizedTaskRef.value= task
@@ -580,15 +596,18 @@ function getRandomAlphanumeric() {
   return characters.charAt(randomIndex);
 }
 
-function maximizeTask(task){
-  console.log('maximizeTask')
-  console.log(task)
-  console.log('Hide Main board')
+async function maximizeTask(task){
+  // console.log('maximizeTask')
+  // console.log(task)
+  // console.log('Hide Main board')
   document.getElementById('mainContainer').style.display = 'none';
-  console.log('show maximized panel')
+  await nextTick()
+  //console.log('show maximized panel')
   maximizedTask.value = true;
+  await nextTick()
   maximizedTaskRef.value= task
-  console.log('scroll to top')
+  // console.log('scroll to top')
+  await nextTick()
   window.scrollBy(0, 0, "smooth")
 }
 

@@ -11,7 +11,7 @@ defineOptions({
 });
 
 const events = defineEmits([
-  'task-updated',
+  'task-updated', "open-task"
 ])
 
 
@@ -29,12 +29,57 @@ const project = computed(() => {
   return prj
 });
 
+function getNormalizedTime(time){
+  let result = ''
+  let re_time = /(\d+) days (\d+):(\d+):(\d+)/
+  let match = re_time.exec(time)
+  let days = Number(match[1])
+  let hours = Number(match[2])
+  let minutes = Number(match[3])
+  let seconds = Number(match[4])
+  if (hours > 24){
+    let days2= Math.floor(hours / 24)
+    hours -= days2*24
+    days += days2
+  }
+  if (days > 0){
+    result = `${days}d, `
+  }
+  if (hours > 0) {
+    result += `${hours}h, `
+  }
+  result += `${minutes}m, ${seconds}s`
+  return result
+}
+
+const timeSpentToday = computed(()=>{
+  // "timeSpent": "0 days 04:10:29",
+  // "timeSpentToday": "0 days 04:10:29",
+  let result=''
+  if (props.task.timeSpentToday){
+    result = getNormalizedTime(props.task.timeSpentToday)
+  }
+  return result
+})
+const timeSpent = computed(()=>{
+  let result=''
+  if (props.task.timeSpent){
+    result = getNormalizedTime(props.task.timeSpent)
+  }
+  return result
+})
+
 const stateAndPriority = computed(() => {
   return `State: \` ${props.task.state} \`
   Priority: ![alt-priority](${props.task.priority}.svg =24x24) ${props.task.priority}`
 })
 
 const pendingSubtasks = computed(() => {
+  return props.task.subTasks.filter(st => !st.endState)
+})
+
+const pendingTasks = computed(() => {
+  console.log(props.task)
   return props.task.subTasks.filter(st => !st.endState)
 })
 
@@ -126,6 +171,8 @@ watch(
   {deep: true}
 )
 
+
+
 </script>
 
 <template>
@@ -159,7 +206,7 @@ watch(
       </div>
       <h4>Notes <q-icon size="xs" name="edit" class="cursor-pointer" @click="editNotes" /></h4>
       <div v-if="task?.notes">
-        <VueShowdown :markdown="task.notes" v-if="!showNotesEditor" />
+        <VueShowdown :markdown="getTaskNotes" v-if="!showNotesEditor" />
       </div>
       <div v-if="showNotesEditor" class="notesEditor">
         <q-input autofocus v-model="newNotes" type="textarea" autogrow>
@@ -169,6 +216,13 @@ watch(
     </div>
     <div v-if="task.idTask" class="calendarDiv r-column">
       <h4>Activity</h4>
+      <p v-if="timeSpentToday">
+      <b>Time Spent Today:</b> {{ timeSpentToday }}<br>
+      </p>
+      <p v-if="timeSpent">
+      <b>Total Time Spent:</b> {{ timeSpent }}<br>
+      </p>
+
       <q-date v-model="selectedDay" today-btn :events="getCalendarForTask" :event-color="getTaskColor" />
       <br>
       <q-btn label="Set Start Date" :disable="selectedDay==='' || !selectedTask" @click="calendarSetStartDate" />
@@ -191,6 +245,22 @@ watch(
         </q-item>
       </q-list>
     </div>
+    <div v-if="task.idEpic && task.idTask==null && pendingTasks.length > 0">
+      <h4>Pending Tasks</h4>
+      <q-list bordered>
+        <q-item v-for="subtask in pendingTasks" @click="$emit('openTask', subtask)" :key="subtask.idTask" :clickable="!subtask.isNew" :v-ripple="!subtask.isNew">
+          <q-item-section>
+            <q-item-label lines="3">
+              <b>{{ subtask.key }}</b> <q-chip color="primary" dense square size="s" text-color="white">{{ subtask.state }}</q-chip>
+            </q-item-label>
+            <q-item-label>
+              {{ subtask.title }}
+            </q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </div>
+
   </slot>
   <slot name="footer"></slot>
 </div>

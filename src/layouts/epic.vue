@@ -2,7 +2,7 @@
 defineOptions({
   name: 'tm-epic'
 });
-import { ref, reactive, defineProps, watch, inject, computed } from 'vue'
+import { ref, reactive, defineProps, watch, inject, computed, onMounted } from 'vue'
 import { callApi } from 'src/common'
 
 const props = defineProps({
@@ -34,6 +34,7 @@ const formData = reactive({
   state: "",
   tasks: [],
   inEdition: false,
+  newTaskTitle: "",
   epicRef: null,
 })
 
@@ -123,20 +124,19 @@ function addSubtaskEditor() {
 async function addSubtask(){
   // dummy()
   console.log(formData.project.value)
-  let stcpy = (' ' + formData.newSubTaskTitle).slice(1)
+  let stcpy = (' ' + formData.newTaskTitle).slice(1)
   let project = boardData.projectsMap.get(formData.project.value)
-  props.idBoard
   if (stcpy) {
     const searchParams = new URLSearchParams('');
     searchParams.append('text', stcpy)
-    searchParams.append('task', formData.idTask)
+    searchParams.append('epic', formData.idEpic)
     let references = await callApi('GET',
       `user/boards/${props.idBoard}/task-reference?`+searchParams.toString())
     let lines = stcpy.split("\n")
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i]
       if (references[line]) {
-        alert(`Moving task ${line} as subtask`)
+        alert(`Moving task ${line} under this epic`)
         formData.tasks.push({
           idTask: references[line].idTask,
           key: references[line].key,
@@ -161,7 +161,7 @@ async function addSubtask(){
     }
   }
   formData.inEdition = false
-  formData.newSubTaskTitle = ''
+  formData.newTaskTitle = ''
 }
 
 function hideForm(){
@@ -205,7 +205,10 @@ function editTask(subtask, parentTask){
   window.electronAPI.openTaskPage(`board/${props.idBoard}/task/${parentTask.idTask}/${subtask.idTask}`, null)
 }
 
-getData()
+onMounted(async ()=> {
+  await getData()
+})
+
 </script>
 
 <template>
@@ -229,7 +232,7 @@ getData()
           <div style="margin-top: 24px;">
             Tasks:
             <q-list bordered dense>
-              <q-item v-for="task in formData.tasks" :key="task.idTask" @click="editTask(subtask, formData.taskRef);formData.taskRef.expanded=true" :clickable="!subtask.isNew" :v-ripple="!subtask.isNew" >
+              <q-item v-for="task in formData.tasks" :key="task.idTask" @click="editTask(task, formData.taskRef);formData.taskRef.expanded=true" :clickable="!task.isNew" :v-ripple="!task.isNew" >
                 <q-item-section avatar>
                   <q-avatar>
                     <img src="../../public/subtask.png" style="width: 16px; height: 16px;">
@@ -250,14 +253,17 @@ getData()
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>
-                    <q-input v-model="formData.newSubTaskTitle" label="New Subtask" autogrow type="textarea" />
-                    <q-btn label="Add" type="button" size="xs" outline color="primary" @click="addSubtask" />
+                    <q-input v-model="formData.newTaskTitle" label="New Task or existing task key. (Press ENTER to add several at once)" autogrow type="textarea">
+                      <template v-slot:after>
+                        <q-btn label="Add" type="button" size="xs" outline color="primary" @click="addSubtask" />
+                      </template>
+                    </q-input>
                   </q-item-label>
                 </q-item-section>
               </q-item>
 
             </q-list>
-            <q-btn flat type="button" @click="addSubtaskEditor" color="primary" >Add Subtask</q-btn>
+            <q-btn flat type="button" @click="addSubtaskEditor" color="primary" >Add Task(s)</q-btn>
           </div>
         </q-card-section>
 

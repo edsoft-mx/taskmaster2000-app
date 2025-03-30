@@ -10,11 +10,15 @@ import {pomodoroOnTimerClick, setAppConfig, pomodoroRehydrate,  addPomodoroTickS
 const platform = process.platform || os.platform()
 const { pathToFileURL } = require('url')
 
+const readline = require('readline');
+const { Readable } = require('stream');
+
 let mainWindow = null
 let pomodoroWindow = null
 let toolWindows = new Map()
 let taskWindows = new Map()
 let epicWindows = new Map()
+let timeLineData = null;
 
 function getCookie(event, name) {
   // session.defaultSession.cookies.get({name: name}).then((error, cookies) => {
@@ -36,6 +40,14 @@ function getConfiguration(event){
   console.log(`Retrieved configuration from ${configFile}`)
   setAppConfig(prevConf)
   return prevConf
+}
+
+async function getLocalNote(notePath){
+  let note=null
+  if (fs.existsSync(notePath)) {
+    note = fs.readFileSync(notePath, 'utf8')
+  }
+  return note
 }
 
 function getMenu(){
@@ -120,6 +132,9 @@ async function createMainWindow () {
     openEpicWindow(page, params)
   })
   ipcMain.handle('function:getConfiguration', getConfiguration)
+  ipcMain.handle('function:getLocalNote', getLocalNote)
+  ipcMain.handle('function:getSharedTimeline', ()=>{return timeLineData})
+
   ipcMain.on('save-configuration', (event, config)=>{
     let basePath = app.getPath('userData')
     const configFile = path.join(basePath, 'config.json')
@@ -133,6 +148,10 @@ async function createMainWindow () {
   })
   ipcMain.on('pomodoro-timer-click', (event, task) => {
     pomodoroOnTimerClick(task)
+  })
+  ipcMain.on('share-timeline', (event, data) => {
+    console.log(data)
+    timeLineData = data
   })
   ipcMain.on('pomodoro-menu-click', (event) => {
     showPomodoroMenu()
@@ -196,6 +215,12 @@ function openWindow(page, params, options={}){
     newWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     toolWindows.set(page, newWindow)
     newWindow.on('closed', () => {
+      if (page==='timeEntry'){
+        if (toolWindows.has('timeline')){
+          let tl = toolWindows.get('timeline')
+          tl.webContents.send('updateTimeline')
+        }
+      }
       toolWindows.delete(page);
     })
     return newWindow
