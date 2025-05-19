@@ -40,7 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shareTimeline: (config) => ipcRenderer.send('share-timeline', config),
   getSharedTimeline: (callback) => ipcRenderer.invoke('function:getSharedTimeline'),
   getConfiguration: (callback) => ipcRenderer.invoke('function:getConfiguration'),
-  getLocalNote: (notePath)=>ipcRenderer.invoke('function:getLocalNote'),
+  getLocalNote: (notePath)=>ipcRenderer.invoke('function:getLocalNote', notePath),
   onRefresh: (callback) => ipcRenderer.on('updateBoard', () => callback()),
   onRefreshTimeline: (callback) => ipcRenderer.on('updateTimeline', () => callback()),
 

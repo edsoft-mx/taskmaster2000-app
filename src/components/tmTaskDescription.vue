@@ -1,6 +1,6 @@
 <script setup>
 import {VueShowdown} from "vue-showdown";
-import { ref, defineProps, defineEmits, watch, computed } from 'vue'
+import { ref, defineProps, defineEmits, watch, computed, onMounted } from 'vue'
 import {
   projectMap,
 } from 'src/commonObjects'
@@ -19,15 +19,48 @@ const props = defineProps(['task'])
 
 const newNotes = ref('')
 const showNotesEditor = ref(false)
+const localNotes = ref('')
+
 
 const project = computed(() => {
   if (props.task==null){
     return ""
   }
-  console.log(`get project ${props.task.idProject}`)
+  //console.log(`get project ${props.task.idProject}`)
   let prj = projectMap.get(props.task.idProject)
   return prj
 });
+
+const getTaskNotes = computed(()=> {
+  if (localNotes.value){
+    return props.task.notes +'\n'+ localNotes.value
+  }
+  else {
+    return props.task.notes
+  }
+})
+
+onMounted(async ()=>{
+  console.log('mounted tmTaskDescription')
+  if (!props.task || !props.task.notes){
+    return
+  }
+  console.log(props.task)
+  let lines = props.task.notes.split("\n");
+  let result = ''
+  let reInternalNote = /~\[.*?]\((.+\.md)\)/
+  for (let line of lines) {
+    let match = reInternalNote.exec(line)
+    if (match) {
+      let xtra = await window.electronAPI.getLocalNote(props.task.notesDirectory+match[1])
+      if (xtra){
+        result += xtra + '\n'
+      }
+    }
+  }
+  localNotes.value = result
+})
+
 
 function getNormalizedTime(time){
   let result = ''
@@ -331,5 +364,7 @@ div.notesEditor{
   padding: 2px;
   border: #707070 1px solid;
 }
+
+
 
 </style>

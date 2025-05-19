@@ -42,7 +42,10 @@ function getConfiguration(event){
   return prevConf
 }
 
-async function getLocalNote(notePath){
+async function getLocalNote(event, notePath){
+  console.log(`Retrieving local note from ${notePath}...`)
+  console.log(event)
+  console.log(notePath)
   let note=null
   if (fs.existsSync(notePath)) {
     note = fs.readFileSync(notePath, 'utf8')

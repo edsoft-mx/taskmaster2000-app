@@ -172,6 +172,7 @@ class BoardTask {
     this.priority= data.priority
     this.projectKey= data.projectKey
     this.projectName= data.projectName
+    this.notesDirectory= data.notesDirectory
     this.sortOrder= data.sortOrder
     this.state= data.state
     this.taskType= data.taskType
