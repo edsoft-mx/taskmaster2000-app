@@ -136,3 +136,5 @@ dist
 .directory
 
 .editorconfig
+._*
+.DS_Store
