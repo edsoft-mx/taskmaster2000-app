@@ -68,7 +68,7 @@ async function getData(){
   console.log("intervals_with_idle")
   console.log(intervals_with_idle)
   if (!idTask || idTask === 'null'){
-    let recentTasks = await callApi('GET', 'user/recent_tasks/')
+    let recentTasks = await callApi('GET', 'user/tasks/recent/')
     let rt = []
     for (let task of recentTasks){
       rt.push({

@@ -905,7 +905,7 @@ async function getData() {
   tags.value = allTags
 
   //selectedTags.value = []
-  let activeFilters = await callApi('GET', 'user/active_filters/')
+  let activeFilters = await callApi('GET', 'user/board_filters/active/')
   let filters2 = []
   console.log(`Active filters ${activeFilters}`)
   for (let activeFilter of activeFilters){
@@ -975,7 +975,7 @@ watch(
     console.log(`selectedTags ${selectedTags.value}`)
     console.log(`Updating selected tags ${newVal}, loadComplete? ${loadComplete}`)
     if (loadComplete){
-      await callApi('POST', 'user/active_filters/', selectedTags.value)
+      await callApi('POST', 'user/board_filters/active/', selectedTags.value)
       if (router.currentRoute.value.fullPath.startsWith('/boards/')) {
         boardExecuteOp.value={op: "refreshData"}
       }
@@ -1006,10 +1006,10 @@ watch(
 async function applyDateRangeFilter(){
   if (loadComplete){
     if (!filterByDate.value){
-      await callApi('POST', 'user/show_days/', {})
+      await callApi('POST', 'user/board_filters/show_days/', {})
     }
     else {
-      await callApi('POST', 'user/show_days/', selectedDays.value)
+      await callApi('POST', 'user/board_filters/show_days/', selectedDays.value)
     }
     if (router.currentRoute.value.fullPath.startsWith('/boards/')) {
       boardExecuteOp.value={op: "refreshData"}
@@ -1038,10 +1038,10 @@ watch(
 async function applyDateRangeStartOrDueFilter(){
   if (loadComplete){
     if (!filterByStartOrDue.value){
-      await callApi('POST', 'user/show_start_or_due_days/', {})
+      await callApi('POST', 'user/board_filters/show_start_or_due_days/', {})
     }
     else {
-      await callApi('POST', 'user/show_start_or_due_days/', selectedDaysStartOrDue.value)
+      await callApi('POST', 'user/board_filters/show_start_or_due_days/', selectedDaysStartOrDue.value)
     }
     if (router.currentRoute.value.fullPath.startsWith('/boards/')) {
       boardExecuteOp.value={op: "refreshData"}

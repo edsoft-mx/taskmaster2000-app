@@ -59,7 +59,7 @@ const formOp = ref("")
 
 async function getData()  {
   let apiCallBoards = callApi('GET', 'user/boards')
-  let apiCallBoardTypes= callApi('GET', 'user/board_types')
+  let apiCallBoardTypes= callApi('GET', 'user/boards/types/')
   let apiCallProjects = callApi('GET', 'user/projects')
   let apiCallTags = callApi('GET', 'user/tags')
   // dummy();
