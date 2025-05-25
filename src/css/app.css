@@ -66,6 +66,10 @@ div.selectedTask {
   box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75)
 }
 
+.summary h1{
+  font-size: 16pt;
+}
+
 .summary h3{
   font-size: 14pt;
   padding: 0px;

@@ -742,7 +742,7 @@ const maxiSubTask = computed(() => {
 </script>
 
 <template>
-  <div id="mainContainer" style="position: relative;" >
+  <div id="mainContainer" class="boardMainContainer" >
     <TMKanban id="rootKanban" :key="updater.get('root')" ref="rootKanban"
               :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
               @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
@@ -810,6 +810,10 @@ const maxiSubTask = computed(() => {
 </template>
 
 <style scoped>
+
+div.boardMainContainer{
+  position: relative;
+}
 
 div.close-btn{
   position: absolute;

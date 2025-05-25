@@ -743,11 +743,11 @@ onUnmounted(async ()=> {
 watch(rightDrawerTab, async ()=>{
   if (!canvasInited){
     await nextTick()
-    // console.log('pre-canvas-ref code')
+    console.log('pre-canvas-ref code')
     // console.log(canvasRefs.value)
     // console.log(timelineObject.value.workDayData.daysToShow)
     if (canvasRefs.value){
-      // console.log('here')
+      console.log('adding event listener to timeline')
       for (let c of canvasRefs.value){
         // console.log(c)
         c.addEventListener('dblclick', handleCanvasDblClick)
