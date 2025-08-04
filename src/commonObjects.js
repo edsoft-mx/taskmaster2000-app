@@ -157,6 +157,8 @@ class BoardTask {
     this.estimatedStartDate= data.estimatedStartDate
     this.formattedEstimatedStartDate= BoardTask.getCalendarFormat(this.estimatedStartDate)
     this.expanded= data.expanded
+    this.ghost = data.ghost
+    this.justAdded = data.justAdded
     this.hasSubTasks= data.hasSubTasks
     this.hierarchy= data.hierarchy
     this.icon= data.icon
@@ -249,6 +251,7 @@ class BoardTask {
       title: this.title,
       key: this.key,
       idProject: this.idProject,
+      color: this.color
     })
   }
 

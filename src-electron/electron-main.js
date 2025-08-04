@@ -3,12 +3,22 @@ import path from 'path'
 import os from 'os'
 import fs from 'fs'
 import url from "url";
-import {pomodoroOnTimerClick, setAppConfig, pomodoroRehydrate,  addPomodoroTickSubscriber, showPomodoroMenu} from './pomodoro';
-// import fetch from 'node-fetch';
-
+//import {pomodoroOnTimerClick, setAppConfig, pomodoroRehydrate,  addPomodoroTickSubscriber, showPomodoroMenu, setMessagerObject, setCurrentUser} from './pomodoro';
+import {setPomodoroWatcher, addPomodoroTickSubscriber, showPomodoroMenu, pomodoroOnTimerClick} from './pomodoro';
+let PROTO_PATH = path.resolve(__dirname, '..', 'taskmaster2000.proto');
+console.log('PROTO_PATH', PROTO_PATH);
 // needed in case process is undefined under Linux
 const platform = process.platform || os.platform()
 const { pathToFileURL } = require('url')
+const grpc = require('@grpc/grpc-js')
+const protoLoader = require('@grpc/proto-loader')
+const packageDefinition = protoLoader.loadSync(PROTO_PATH,
+  {keepCase: true, longs: String, enums: String, defaults: true, oneofs: true});
+let grpcProto = grpc.loadPackageDefinition(packageDefinition).msgs;
+let grpcPomodoroClient = null;
+let grpcTaskClient = null
+let currentUser = "";
+let configuration = null
 
 const readline = require('readline');
 const { Readable } = require('stream');
@@ -19,6 +29,7 @@ let toolWindows = new Map()
 let taskWindows = new Map()
 let epicWindows = new Map()
 let timeLineData = null;
+const hostname = os.hostname();
 
 function getCookie(event, name) {
   // session.defaultSession.cookies.get({name: name}).then((error, cookies) => {
@@ -31,15 +42,29 @@ function getCookie(event, name) {
 }
 
 function getConfiguration(event){
+  if (!configuration){
+    let basePath = app.getPath('userData')
+    const configFile = path.join(basePath, 'config.json')
+    let prevConf = null
+    if (fs.existsSync(configFile)) {
+      prevConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+    }
+    console.log(`Retrieved configuration from ${configFile}`)
+    configuration = prevConf
+  }
+  return configuration
+}
+
+function saveConfiguration(config){
   let basePath = app.getPath('userData')
   const configFile = path.join(basePath, 'config.json')
-  let prevConf = null
+  let prevConf = {}
   if (fs.existsSync(configFile)) {
     prevConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
   }
-  console.log(`Retrieved configuration from ${configFile}`)
-  setAppConfig(prevConf)
-  return prevConf
+  let newConf = {...prevConf, ...config}
+  fs.writeFileSync(configFile, JSON.stringify(newConf))
+  configuration= newConf
 }
 
 async function getLocalNote(event, notePath){
@@ -92,9 +117,10 @@ function getMenu(){
   ]
 }
 
-
-
 async function createMainWindow () {
+  await getConfiguration(null)
+  grpcPomodoroClient = new grpcProto.Pomodoro(configuration.messengerHostPort, grpc.credentials.createInsecure());
+  grpcTaskClient  = new grpcProto.TaskUpdatedNotifier(configuration.messengerHostPort, grpc.credentials.createInsecure());
   /**
    * Initial window options
    */
@@ -139,15 +165,14 @@ async function createMainWindow () {
   ipcMain.handle('function:getSharedTimeline', ()=>{return timeLineData})
 
   ipcMain.on('save-configuration', (event, config)=>{
-    let basePath = app.getPath('userData')
-    const configFile = path.join(basePath, 'config.json')
-    let prevConf = {}
-    if (fs.existsSync(configFile)) {
-      prevConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+    saveConfiguration(config)
+  })
+  ipcMain.on('set-whoami', (event, user)=>{
+    if (user && (!currentUser || currentUser != user)){
+      currentUser= user
+      setPomodoroWatcher(grpcPomodoroClient, currentUser, configuration)
+      taskWatcherStreamingCall(grpcTaskClient, currentUser)
     }
-    let newConf = {...prevConf, ...config}
-    fs.writeFileSync(configFile, JSON.stringify(newConf))
-    // console.log(`Updated configuration on ${configFile}`)
   })
   ipcMain.on('pomodoro-timer-click', (event, task) => {
     pomodoroOnTimerClick(task)
@@ -162,12 +187,12 @@ async function createMainWindow () {
   addPomodoroTickSubscriber((message)=>{
     mainWindow.webContents.send('pomodoro-tick', message)
   })
-  await getConfiguration(null)
-  await pomodoroRehydrate()
-  // if (process.env.DEBUGGING) {
-  //   // if on DEV or Production with debug enabled
-  //   mainWindow.webContents.openDevTools()
-  // }
+  //await pomodoroRehydrate()
+
+  if (process.env.DEBUGGING) {
+     // if on DEV or Production with debug enabled
+     mainWindow.webContents.openDevTools()
+  }
   // else {
   //   // we're on production; no access to devtools pls
   //   mainWindow.webContents.on('devtools-opened', () => {
@@ -253,9 +278,9 @@ function openTaskWindow(page, params){
     taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     taskWindows.set(`${page}${params}`, taskWindow)
     taskWindow.on('closed', () => {
-      if (mainWindow){
-        mainWindow.webContents.send('updateBoard')
-      }
+      // if (mainWindow){
+      //   mainWindow.webContents.send('updateBoard')
+      // }
       taskWindows.delete(`${page}${params}`);
     })
   }
@@ -309,10 +334,11 @@ function openTimeline(){
 function openPomodoroTimerWindow() {
   pomodoroWindow = openWindow('pomodoroTimer', null, {
     width: 800,
-    height: 40,
+    height: 49,
     skipTaskbar: true,
     title: 'Pomodoro Timer',
   })
+  //pomodoroWindow.webContents.openDevTools()
   addPomodoroTickSubscriber((message)=>{
     pomodoroWindow.webContents.send('pomodoro-tick', message)
   })
@@ -388,3 +414,39 @@ app.on('activate', () => {
     createMainWindow()
   }
 })
+
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  // console.log(certificate.issuer)
+  // console.log(hostname)
+  let validCert = certificate.issuer.organizations[0] === 'EDSoft' && certificate.issuer.organizationUnits[0] === 'Taskmaster2000'
+  if (error === 'net::ERR_CERT_AUTHORITY_INVALID' && validCert) {
+    // In a real application, you'd want to verify the certificate here
+    // For example, check the certificate's subject, issuer, or use a pre-defined list of trusted certificates
+    //console.log(certificate)
+    event.preventDefault(); // Prevent default error handling
+    callback(true); // Allow the connection (assuming it's verified)
+  } else {
+    // If it's not our certificate or a different error, let the default handling take over
+    callback(false);
+  }
+});
+
+function taskWatcherStreamingCall(client, user) {
+  return new Promise((resolve, reject) => {
+    console.log('taskWatcherStreamingCall')
+    const call = client.SubscribeTaskWatcher({user: user})
+    call.on('data', async (task) => {
+      console.log('Received updated task')
+      console.log(task)
+      mainWindow.webContents.send('on-task-update', task.id_task)
+    });
+    call.on('status', status => {
+      console.log(`[${requestId}] wanted = ${grpc.status[expectedCode]} got = ${grpc.status[status.code]}`);
+      resolve();
+    });
+    call.on('error', () => {
+      // Ignore error event
+    });
+    //call.end();
+  });
+}

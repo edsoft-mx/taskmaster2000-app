@@ -3,12 +3,13 @@ defineOptions({
   name: 'tm-task'
 });
 import {ref, reactive, defineProps, watch, inject, computed, onMounted} from 'vue'
-import { callApi } from 'src/common'
+import {callApi, store_configuration} from 'src/common'
 
 const props = defineProps({
   idBoard: Number,
   idTask: Number,
   idSubTask: Number,
+  idEpic: Number,
   initialState: String,
 })
 
@@ -18,6 +19,10 @@ const isNewTask = computed(() => {
 
 const isSubTask = computed(() => {
   return props.idSubTask >= 0
+})
+
+const hasEpic = computed(() => {
+  return props.idEpic != null && props.idEpic > 0
 })
 
 const boardData = reactive({
@@ -35,6 +40,7 @@ const formData = reactive({
   description: "",
   notes: "",
   project: 0,
+  epic: null,
   lookupProjects: [],
   state: "",
   tasksIndex: -1,
@@ -162,7 +168,17 @@ async function getData(){
     formData.taskType = taskTypes.find(tt => tt.value === (!isSubTask.value ? "task" : "subtask"))
     formData.project = boardProjects.value[0]
     updateEpics4Project(formData.project)
-    title = !isSubTask.value ?  "New Task" : `New Subtask for ${formData.parentTask.key}`
+    if (!isSubTask.value){
+      console.log(props.idEpic)
+      title = "New Task"
+      if (hasEpic.value) {
+        formData.epic = boardProjectEpics.value.find(p => p.value == props.idEpic)
+        title += ` for Epic: ${formData.epic.label}`
+      }
+    }
+    else {
+      title = `New Subtask for Task: ${formData.parentTask.key}`
+    }
     formData.state = searchParam('state')
     formData.xtraData = {}
   }
@@ -392,6 +408,16 @@ function addItem(checklist){
 const newCheckListItem = ref('')
 
 onMounted(async ()=> {
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
   await getData()
 })
 

@@ -5,7 +5,7 @@ defineOptions({
   name: 'tm-board'
 });
 import {ref, reactive, defineProps, watch, inject, computed, onMounted, triggerRef, nextTick} from 'vue'
-import { callApi } from 'src/common'
+import {callApi, store_configuration} from 'src/common'
 import {
   allStates,
   projectMap,
@@ -109,7 +109,7 @@ async function getData(){
   boardData.projects = []
   boardData.epicTasks = {}
   resetData()
-  let taskObjects= []
+  //let taskObjects= []
   let epicObjects= []
   let statesObjects= []
   let projectObjects= []
@@ -134,54 +134,39 @@ async function getData(){
   boardData.task2domMap.clear()
   boardData.epic2domMap.clear()
 
+  result = await apiCallBoardTasks
+  let filteredEpics = new Map()
+  if (result.filtered){
+    // when applying a filter, we're going to hide any epic w/o a filtered task.
+    for (let task of result.tasks) {
+      if (task.idEpic){
+        filteredEpics.set(task.idEpic, true)
+      }
+    }
+  }
   let epics = await apiCallBoardEpics
   for (let epic of epics){
+    if (result.filtered) {
+      if (!filteredEpics.has(epic.idEpic)) {
+        continue
+      }
+      epic.expanded = true
+    }
     let epicObject= new BoardEpic(epic)
     epicObjects.push(epicObject)
     boardData.epic2domMap.set(epic.idEpic, `epic-card-${epic.idEpic}`)
     //updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
   }
 
-  result = await apiCallBoardTasks
+
   let activityMap = new Map()
   console.log('new activityMap')
   for (let task of result.tasks){
-    let taskObject = new BoardTask(task)
-    if (task.dueDate){
-      // console.log(`Set ${task.key}.dueDate = ${task.dueDate}`)
-      updateActivityDate(activityMap, 'due', task.dueDate)
+    if (result.filtered){
+      task.expanded = true
     }
-    if (task.estimatedStartDate){
-      // console.log(`Set ${task.key}.estimatedStartDate = ${task.estimatedStartDate}`)
-      updateActivityDate(activityMap, 'start', task.estimatedStartDate)
-    }
-    taskObjects.push(taskObject)
-    boardData.task2domMap.set(task.idTask, `task-card-${task.idTask}`)
-    // if (task.idEpic!=null){
-    //   // console.log('A Task with an Epic!')
-    //   // console.log(task)
-    //   let epicKey= `epic_${task.idEpic}_tasks`
-    //   if (!boardData.epicTasks.hasOwnProperty(epicKey)){
-    //     boardData.epicTasks[epicKey] = []
-    //   }
-    //   boardData.epicTasks[epicKey].push(task)
-    // }
-    //updater.set(`task_${task.idTask}`, `task_${task.idTask}`)
-    if (task.hasSubTasks){
-      //boardData.tasksWithSubTasks.push(task)
-      for (let subTask of task.subTasks){
-        //boardData.allTasksMap.set(`subtask-card-${task.idTask}-${subTask.idTask}`, subTask)
-        boardData.task2domMap.set(subTask.idTask, `task-card-${subTask.idTask}`)
-        if (subTask.dueDate){
-          // console.log(`Set ${subTask.key}.dueDate = ${subTask.dueDate}`)
-          updateActivityDate(activityMap, 'due', subTask.dueDate)
-        }
-        if (subTask.estimatedStartDate){
-          // console.log(`Set ${subTask.key}.estimatedStartDate = ${subTask.estimatedStartDate}`)
-          updateActivityDate(activityMap, 'start', subTask.estimatedStartDate)
-        }
-      }
-    }
+    let taskObject = setTaskData(task, activityMap)
+    //taskObjects.push(taskObject)
   }
   daysWithActivity.value = activityMap
   leftDrawerOpen.value= false
@@ -382,19 +367,112 @@ async function showSearchedTask(idTask, tryNumber=1){
   // }
 }
 
+function setTaskData(task, activityMap, parentTaskId=null){
+  let taskObject = new BoardTask(task, parentTaskId)
+  if (task.dueDate){
+    // console.log(`Set ${task.key}.dueDate = ${task.dueDate}`)
+    updateActivityDate(activityMap, 'due', task.dueDate)
+  }
+  if (task.estimatedStartDate){
+    // console.log(`Set ${task.key}.estimatedStartDate = ${task.estimatedStartDate}`)
+    updateActivityDate(activityMap, 'start', task.estimatedStartDate)
+  }
+  boardData.task2domMap.set(task.idTask, `task-card-${task.idTask}`)
+  if (task.hasSubTasks){
+    for (let subTask of task.subTasks){
+      //boardData.allTasksMap.set(`subtask-card-${task.idTask}-${subTask.idTask}`, subTask)
+      boardData.task2domMap.set(subTask.idTask, `task-card-${subTask.idTask}`)
+      if (subTask.dueDate){
+        // console.log(`Set ${subTask.key}.dueDate = ${subTask.dueDate}`)
+        updateActivityDate(activityMap, 'due', subTask.dueDate)
+      }
+      if (subTask.estimatedStartDate){
+        // console.log(`Set ${subTask.key}.estimatedStartDate = ${subTask.estimatedStartDate}`)
+        updateActivityDate(activityMap, 'start', subTask.estimatedStartDate)
+      }
+    }
+  }
+  return taskObject
+}
+
+
+async function insertTask(idTask){
+  console.log('Insert Task')
+  let result = true
+  let activityMap = daysWithActivity.value
+  let currentValues = await callApi('GET', `user/boards/${props.idBoard}/tasks/${idTask}`)
+  currentValues.justAdded = true
+  if (currentValues.idEpic){
+    console.log(`inserted new task ${idTask} into epic ${currentValues.idEpic}`)
+    let taskObject = setTaskData(currentValues, activityMap)
+    let epic = boardData.epics.find((e)=> e.idEpic === currentValues.idEpic)
+    epic.uiKey= epic.uiKey + getRandomAlphanumeric()
+  }
+  else if (!currentValues.hierarchy.includes('.')){
+    let taskObject = setTaskData(currentValues, activityMap)
+    console.log(`inserted new root task ${idTask}`)
+    boardData.tasks = BoardTask.rootTasks
+    let key = updater.get("root")
+    updater.set("root", key+'X')
+  }
+  else {
+    let taskObject = setTaskData(currentValues, activityMap, Number(currentValues.hierarchy.split('.')[0]))
+    console.log(`inserted new sub-task ${idTask} into parent task ${taskObject.parentTaskId}`)
+
+    let taskIdx = boardData.tasks.findIndex(t => t.idTask === taskObject.parentTaskId)
+    let parentTask2= boardData.tasks[taskIdx]
+    if (parentTask2){
+      // the parent is a root node
+      boardData.tasks[taskIdx].subTasks.push(taskObject)
+      taskObject.parentTask = parentTask2
+    }
+    else {
+      // the parent is not a root node, so, it should belong to an epic
+      let parentTask2 = BoardTask.allTasks.find((t)=> t.idTask === taskObject.parentTaskId)
+      let epic = boardData.epics.find(e=> e.idEpic === parentTask2.idEpic)
+      let tasks= epic.subTasks //boardData.epicTasks[`epic_${epic.idEpic}_tasks`]
+      let parentIdx = epic.subTasks.findIndex(t => t.idTask === taskObject.parentTaskId)
+      tasks[parentIdx].subTasks.push(taskObject)
+      tasks[parentIdx].uiKeyContainer= tasks[parentIdx].uiKeyContainer + getRandomAlphanumeric()
+      taskObject.parentTask = parentTask2
+    }
+
+    //insertTaskOnParentTask(taskObject)
+  }
+  daysWithActivity.value = activityMap
+  return result
+}
+
 async function updateTask(idTask){
   if (!idTask){
     return
   }
-  console.log(`Updating task ${idTask}`)
+  console.log(`Update or insert task ${idTask}`)
   let task = BoardTask.allTasks.find(t => t.idTask == idTask)
+  if (task == null){
+    if (! await insertTask(idTask)){
+      console.log(`Could not insert task ${idTask}, refreshing data...`)
+      let scroll = window.scrollY
+      await getData();
+      window.scroll(0, scroll)
+    }
+    return
+  }
+  console.log(`Updating task ${idTask}`)
   let currentValues = await callApi('GET', `user/boards/${props.idBoard}/tasks/${idTask}`)
+  let prevState = task.state
   task.updateData(currentValues)
   task.updateUIElements()
-  // if (task.idTask === selectedTask.value.idTask){
-  //   selectedTask.value=null
-  //   selectedTask.value=task
-  // }
+  if (prevState !== currentValues.state) {
+    uiStore.setNewState4Task(idTask, currentValues.state)
+  }
+  if (task.idTask === selectedTask.value.idTask){
+    selectedTask.value=null
+    globalSelectedTask.value = null
+    //selectedTask.value=task
+    await nextTick()
+    showTask(task)
+  }
 }
 
 function viewSubTask(subTask){
@@ -585,10 +663,26 @@ window.electronAPI.onRefresh(async() => {
   console.log(window.scrollY)
 })
 
-onMounted(()=>{
-  console.log('mounted')
-  getData()
+
+window.electronAPI.onTaskUpdate(async(idTask) => {
+  console.log(`got signal of an updated task: ${idTask}`)
+  await updateTask(idTask)
 })
+
+onMounted(async ()=>{
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
+  await getData()
+})
+
 
 function getRandomAlphanumeric() {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -743,13 +837,13 @@ const maxiSubTask = computed(() => {
 
 <template>
   <div id="mainContainer" class="boardMainContainer" >
-    <TMKanban id="rootKanban" :key="updater.get('root')" ref="rootKanban"
+    <TMKanban id="rootKanban" :key="updater.get('root')" ref="rootKanban" :id-board="props.idBoard"
               :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
               @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
     <div v-for="epic in boardData.epics" :key="epic.uiKey" >
       <div :style="styleForSuperTask(epic)" v-if="epic.expanded">
         <TMEpicContainer :states="boardData.states" :epic="epic" :id="`epic-container-${epic.idEpic}`"
-                         :tasks="epic.subTasks"
+                         :tasks="epic.subTasks" :id-board="props.idBoard"
                          @toggle-detail="toggleTask"
                          @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
       </div>
@@ -757,7 +851,7 @@ const maxiSubTask = computed(() => {
     <div v-for="task in boardData.tasks" :key="task.uiKeyContainer" >
       <div :style="styleForSuperTask(task)" v-if="task.expanded && task.hasSubTasks">
         <TMTaskContainer :states="boardData.states" :task="task" :tasks="task.subTasks"
-                         :id="`super-task-${task.idTask}`"
+                         :id="`super-task-${task.idTask}`" :id-board="props.idBoard"
                          @toggle-detail="toggleTask" @select="showTask" @maximize="maximizeTask" />
       </div>
     </div>

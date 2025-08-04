@@ -1,6 +1,6 @@
-import { useSessionStore } from 'stores/user_session';
+// import { useSessionStore } from 'stores/user_session';
 import {reactive} from "vue";
-const store = useSessionStore()
+//const store = useSessionStore()
 
 function dummy(){
     console.log('need a breakpoint?')
@@ -11,12 +11,18 @@ function loginCallback(data){
   console.log(data)
 }
 
+let configuration
+
+function store_configuration(config){
+  configuration = config
+}
+
 async function callApiLogin(user, password){
     let formData = new FormData();
     formData.append('username', user)
     formData.append('password', password)
     let data = new URLSearchParams(formData)
-    const url = store.getAPIUrl
+    const url = configuration.apiURL
     const response = await fetch(`${url}/login`,
         {
             method: "POST",
@@ -30,7 +36,7 @@ async function callApiLogin(user, password){
     }
     if (window.electronAPI){
       let payload = await response.json()
-      store.setCurrentUser(user, payload.jwt)
+      //store.setCurrentUser(user, payload.jwt)
       window.electronAPI.saveConfiguration({
         token: payload.jwt
       })
@@ -40,7 +46,8 @@ async function callApiLogin(user, password){
 }
 
 async function callApi(method, endpoint, data){
-    const url = store.getAPIUrl
+    const url = configuration.apiURL
+  //store.getAPIUrl
     let response
     if (window.electronAPI){
       let token= await window.electronAPI.getCookie('session_token')
@@ -76,7 +83,8 @@ async function callApi(method, endpoint, data){
 }
 
 async function callLogout(){
-  const url = store.getAPIUrl
+  const url = configuration.apiURL
+    //store.getAPIUrl
   const response = await fetch(`${url}/logout`, {
     method: "GET",
     credentials: 'include',
@@ -413,7 +421,8 @@ export class Timeline {
   startTentativePeriod(pomodoroData, allProjects){
     let epochType = typeof pomodoroData.epoch;
     let epoch = 0
-    console.log(pomodoroData.task)
+    console.log('startTentativePeriod')
+    console.log(pomodoroData)
     if (epochType!=='number' && pomodoroData.epoch != null){
       let color = "#c0c0c0"
       if (pomodoroData.timerActive){
@@ -433,9 +442,9 @@ export class Timeline {
           this.workDayData.last = last
         }
         if (pomodoroData.task){
-          let prj = allProjects.find(p => p.idProject === pomodoroData.task.idProject)
+          let prj = allProjects.find(p => p.idProject === pomodoroData.task.id_project)
           if (prj==null){
-            console.log(`Could not find project ${pomodoroData.task.idProject} on pomodoro.startTentativePeriod`)
+            console.log(`Could not find project ${pomodoroData.task.id_project} on pomodoro.startTentativePeriod`)
           }
           color = prj.color
         }
@@ -516,5 +525,5 @@ export class Timeline {
 
 }
 
-export {callApiLogin, callApi, callLogout, dummy}
+export {callApiLogin, callApi, callLogout, dummy, store_configuration}
 

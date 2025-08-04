@@ -52,14 +52,21 @@ div.newTask {
 }
 
 div.task {
+  color: #404040;
   background-color: white;
   border-radius: 6px;
   min-height: 60px;
   padding: 4px;
-  margin-bottom: 4px;
+  margin-bottom: 16px;
   margin-top: 4px;
   margin-left: 2px;
   margin-right: 2px;
+  padding-bottom: 32px;
+}
+
+div.task.ghost-task{
+/*  background-color: #f0f0f0; */
+  color: #808080;
 }
 
 div.selectedTask {
@@ -132,10 +139,11 @@ button.buttonTaskAction2 {
     border-radius: 6px;
     min-height: 60px;
     padding: 4px;
-    margin-bottom: 4px;
+    margin-bottom: 16px;
     margin-top: 4px;
     margin-left: 2px;
     margin-right: 2px;
+    padding-bottom: 32px;
   }
 
   div.superTask {

@@ -38,6 +38,12 @@ const routes = [
     props: true
   },
   {
+    path: '/board/:idBoard/epic/:idEpic/:idTask/:initialState?',
+    component: ()=> import('layouts/task.vue'),
+    name: 'taskEditor2',
+    props: true
+  },
+  {
     path: '/board/:idBoard/epic/:idEpic/:initialState?',
     component: ()=> import('layouts/epic.vue'),
     name: 'epicEditor',

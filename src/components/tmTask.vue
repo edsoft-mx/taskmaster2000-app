@@ -23,7 +23,13 @@ const events = defineEmits([
 
 
 function styleForTask(){
-  return `border: solid 3px ${props.task.color}; padding-bottom: 32px;` // ${shadow}; `
+  let s = `border: solid 3px ${props.task.color}; `
+  if (props.task.ghost){
+    s = `border: solid 2px ${props.task.color}80; `
+  }
+  return s
+  // ${shadow};
+  //padding-bottom: 32px;
 }
 
 function getTaskMouseOutStyle(){
@@ -41,10 +47,18 @@ function editTask(){
   theTask.editTask()
 }
 
+function taskClasses(){
+  let c = 'task'
+  if (props.task.ghost){
+    c += ' ghost-task' ;
+  }
+  return c
+}
+
 </script>
 
 <template>
-  <div class="task" :style="styleForTask()"
+  <div :class="taskClasses()" :style="styleForTask()"
        @click="$emit('select', task)" :id="`task-card-${task.idTask}`"
        onmouseover="this.style.borderStyle='dotted'" :onmouseout="getTaskMouseOutStyle()" style="position: relative;"
        draggable="true"

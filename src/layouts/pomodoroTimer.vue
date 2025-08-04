@@ -1,5 +1,6 @@
 <script setup>
-import {ref, reactive, watch} from 'vue'
+import {ref, reactive, watch, triggerRef} from 'vue'
+import {callApi} from "src/common";
 
 let pomodoroData = reactive({
   timerActive: false,  // is pomodoro timer on/off
@@ -25,31 +26,46 @@ function isSessionActive(index){
   return pomodoroSessions.value[index] ? "red" : "primary"
 }
 
+function setPomodoroDataValues(data){
+  pomodoroData.timerActive= data.timerActive
+  pomodoroData.session= data.session
+  pomodoroData.start= data.start
+  pomodoroData.epoch= data.epoch
+  pomodoroData.remaining= data.remaining
+  pomodoroData.fullSessionDuration= data.fullSessionDuration
+  pomodoroData.notifiedEndOfBreak= data.notifiedEndOfBreak
+  pomodoroData.breakExpiredATimeAgo= data.breakExpiredATimeAgo
+  pomodoroData.task= data.task
+}
+
 window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   console.log('Get message from pomodoro:')
   console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
+    case 'pomodoroTaskStart':
+      console.log('pomodoroTaskStart')
+      //pomodoroSessions.value=[false, false, false, false, false, false, false, false]
+      setPomodoroDataValues(pomodoroMsg.pomodoroData)
+      //pomodoroSessions.value[pomodoroData.session] = true;
+      break
     case 'updateTimer':
+      //console.log('pomodoro tick')
       remainingTime.value = pomodoroMsg.value.remainingTime
-      pomodoroData.task = pomodoroMsg.value.task
-      pomodoroData.breakExpiredATimeAgo = pomodoroMsg.value.pomodoroData.breakExpiredATimeAgo
-      if (workDayCurrentInterval!=null){
-        //console.log('Update tentative period')
-        let item = workDayIntervals.value[workDayCurrentInterval]
-        item.elapsed= (Date.now() - pomodoroData.start) / 1000
-        //convertJSTsToChart(Date.now()) - convertJSTsToChart(pomodoroData.task.workingIntervalStart)
-        workDayIntervals.value[workDayCurrentInterval] = item
-      }
+      setPomodoroDataValues(pomodoroMsg.value.pomodoroData)
       break;
     case 'pomodoroSetSession':
       pomodoroSessions.value[pomodoroData.session] = false
       pomodoroSessions.value[pomodoroMsg.value] = true;
       pomodoroData.session = pomodoroMsg.value
+      setPomodoroDataValues(pomodoroMsg.pomodoroData)
+      //console.log('setup tentative period')
       break
     case 'pomodoroEnd':
-      pomodoroSessions.value[pomodoroData.session] = false
-      pomodoroSessions.value[pomodoroMsg.value] = true;
+      document.getElementById('boxRing').play()
+      //pomodoroSessions.value[pomodoroData.session] = false
+      //pomodoroSessions.value[pomodoroMsg.value] = true;
       pomodoroData.session = pomodoroMsg.value
+      setPomodoroDataValues(pomodoroMsg.pomodoroData)
       break;
   }
 
@@ -162,7 +178,7 @@ body {
   align-items: normal;
   align-content: normal;
   color: white;
-  height: 44px;
+  /* height: 44px; */
   margin: 0;
   padding-top: 2px;
 }
@@ -183,16 +199,16 @@ body {
   flex-basis: auto;
   align-self: auto;
   order: 1;
-  max-width: 260px;
+  /* max-width: 260px; */
 }
 
 .flex-items:nth-child(3) {
   display: block;
-  flex-grow: 0;
+  flex-grow: 1;
   flex-shrink: 1;
   flex-basis: auto;
   align-self: auto;
   order: 2;
-  max-width: 110px;
+  /* max-width: 110px; */
 }
 </style>

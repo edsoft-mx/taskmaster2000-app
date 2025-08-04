@@ -4,7 +4,7 @@ defineOptions({
 });
 
 import {ref, reactive, defineProps, watch, inject, onBeforeMount, onMounted, onUnmounted, useTemplateRef} from 'vue'
-import { callApi, Timeline } from 'src/common'
+import {callApi, store_configuration, Timeline} from 'src/common'
 import Chart from 'chart.js/auto';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 //import { Bar } from 'vue-chartjs'
@@ -330,7 +330,17 @@ function handleCanvasClick(event){
   }
 }
 
-onMounted(async ()=> {
+onMounted(async ()=>{
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
   await getData()
   if (canvasRefs.value){
     //console.log(canvasRefs.value)
@@ -339,6 +349,7 @@ onMounted(async ()=> {
     }
   }
 })
+
 
 onUnmounted(async ()=> {
   if (canvasRefs.value){
@@ -389,7 +400,7 @@ window.electronAPI.onRefreshTimeline(async() => {
               x="0"
               :y="timelineObject.getIntervalY(interval)"
               width="100%"
-              :fill="timelineObject.workDayData.projects[interval.project].color"
+              :fill="interval.color"
               stroke="white"
               :height="timelineObject.getIntervalHeight(interval)"
               :title="interval.task" />

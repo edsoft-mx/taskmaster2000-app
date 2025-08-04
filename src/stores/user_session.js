@@ -15,6 +15,7 @@ export const useSessionStore = defineStore('user_session', {
       return state.jwt
     },
     getAPIUrl(state) {
+      console.log('store.userSessionStore.getApiURL', state.apiUrl);
       return state.apiUrl;
     }
   },
@@ -24,6 +25,7 @@ export const useSessionStore = defineStore('user_session', {
       this.jwt = jwt
     },
     setApiURL(apiUrl) {
+      console.log('store.userSessionStore.setApiURL', apiUrl);
       this.apiUrl = apiUrl
     }
   }

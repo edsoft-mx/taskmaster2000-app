@@ -76,8 +76,9 @@ button.buttonTaskAction {
   align-items: left;
   justify-content: center;
   padding-top: 20px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   position: relative;
+  color: #404040;
 }
 
 .folder {
@@ -117,6 +118,15 @@ button.buttonTaskAction {
 @media (prefers-color-scheme: dark) {
   .folder {
     background-color: #2b2d30;
+  }
+
+  .folder-container {
+    align-items: left;
+    justify-content: center;
+    padding-top: 20px;
+    margin-bottom: 16px;
+    position: relative;
+    color: white;
   }
 }
 

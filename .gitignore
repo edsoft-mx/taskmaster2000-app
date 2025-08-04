@@ -9,7 +9,14 @@ lerna-debug.log*
 .idea
 .vscode
 .quasar
+/dist
+/quasar.config.*.temporary.compiled*
 
+# Cordova related directories and files
+/src-cordova/node_modules
+/src-cordova/platforms
+/src-cordova/plugins
+/src-cordova/www
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

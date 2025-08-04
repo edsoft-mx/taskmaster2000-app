@@ -33,6 +33,10 @@ const props = defineProps({
     type: String,
     required: false,
     default: ""
+  },
+  idBoard: {
+    type: String,
+    required: true,
   }
 })
 
@@ -60,44 +64,128 @@ let rootElements = computed(()=>{
   return result.concat(props.tasks)
 })
 
-function getTasks(state){
-  if (!stateDisplayLimit.value.has(state.state)) {
-    stateDisplayLimit.value.set(state.state, 7)
-  }
-  let result = []
-  if (props.parent==null){
-    // console.log(`Root node, returning ${state.tasks.length} tasks with state ${state.state}`)
-    // console.log(`Root node, returning ${state.epics?.length} epics with state ${state.state}`)
-    result = rootElements.value.filter((e)=> e.state === state.state)
-  } else {
-    // console.log('get sub-Tasks')
-    // console.log(props.tasks)
-    // console.log(`container has ${tasks.length} tasks`)
-    for (let task of props.tasks){
-        //console.log(task.key)
-        if (task.state === state.state){
-          result.push(task)
-        }
+let epicsIndexed = computed(()=>{
+  // console.log('Computing epics...')
+  let result = new Map()
+  let epics = props.epics ? props.epics : []
+  let indexTop = new Map();
+  for (let epic of epics){
+    //console.log('epic', epic)
+    if (!stateDisplayLimit.value.has(epic.state)) {
+      stateDisplayLimit.value.set(epic.state, 7)
     }
-    //console.log(`and ${r.length} tasks of state ${state.state}`)
+    let index;
+    let epics_by_state = []
+    if (!result.has(epic.state)){
+      index = 0
+      indexTop.set(epic.state, 0)
+      result.set(epic.state, epics_by_state)
+    }
+    else {
+      index = indexTop.get(epic.state)
+      epics_by_state= result.get(epic.state)
+    }
+    epic.displayIndex=index;
+    index++;
+    indexTop.set(epic.state, index)
+    epics_by_state.push(epic)
   }
-  stateTasksLength.value.set(state.state, result.length)
-  return result.slice(0, stateDisplayLimit.value.get(state.state))
-}
+  return result
+})
+
+let tasksIndexed = computed(()=>{
+  // console.log('Computing tasks...')
+  let result = new Map()
+  let indexTop = new Map()
+  for (const [key, value] of epicsIndexed.value) {
+    indexTop.set(key, value.length)
+  }
+  //console.log(indexTop)
+  let tasks = props.tasks ? props.tasks : []
+  for (let task of tasks){
+    //console.log('task', task)
+    if (!stateDisplayLimit.value.has(task.state)) {
+      stateDisplayLimit.value.set(task.state, 7)
+    }
+    let index;
+    let tasks_by_state = []
+    if (indexTop.has(task.state)){
+      index = indexTop.get(task.state)
+    }
+    else {
+      index = 0
+    }
+    if (!result.has(task.state)){
+      result.set(task.state, tasks_by_state)
+    }
+    else {
+      tasks_by_state= result.get(task.state)
+    }
+    task.displayIndex=index;
+    index++;
+    indexTop.set(task.state, index)
+    tasks_by_state.push(task)
+  }
+  //console.log('tasks done: ', result.get('Done'))
+  for (const [key, value] of result) {
+    stateTasksLength.value.set(key, value.length)
+  }
+  return result
+})
+
+// function getTasks(state){
+//   if (!stateDisplayLimit.value.has(state.state)) {
+//     stateDisplayLimit.value.set(state.state, 7)
+//   }
+//   let result = []
+//   if (props.parent==null){
+//     // console.log(`Root node, returning ${state.tasks.length} tasks with state ${state.state}`)
+//     // console.log(`Root node, returning ${state.epics?.length} epics with state ${state.state}`)
+//     result = rootElements.value.filter((e)=> e.state === state.state)
+//     let idx = 0;
+//     for (let task of result){
+//       task.displayIndex = idx
+//     }
+//   } else {
+//     // console.log('get sub-Tasks')
+//     // console.log(props.tasks)
+//     // console.log(`container has ${tasks.length} tasks`)
+//     let idx = 0;
+//     for (let task of props.tasks){
+//         //console.log(task.key)
+//         if (task.state === state.state){
+//           task.displayIndex = idx
+//           result.push(task)
+//         }
+//     }
+//     //console.log(`and ${r.length} tasks of state ${state.state}`)
+//   }
+//   stateTasksLength.value.set(state.state, result.length)
+//   //return result.slice(0, stateDisplayLimit.value.get(state.state))
+//
+//   return result
+// }
 
 
 function newTask(state){
-  let idBoard = getTasks(state)[0].idBoard
-  if (props.parent==null || props.parent.idTask==null){
+  let idBoard = props.idBoard  //tasksIndexed.value.get(state)[0].idBoard
+  console.log(state.state, idBoard, props.parent)
+  if (props.parent==null || (props.parent.idTask==null && props.parent.idEpic==null)){
+    console.log('new root task')
     window.electronAPI.openTaskPage(`board/${idBoard}/task/0/-1`, `state=${state.state}`)
   }
+  else if (props.parent.idEpic!=null){
+    console.log('new epic task')
+    window.electronAPI.openTaskPage(`board/${idBoard}/epic/${props.parent.idEpic}/0/-1`, `state=${state.state}`)
+  }
   else {
+    console.log('new subtask')
     window.electronAPI.openTaskPage(`board/${idBoard}/task/${props.parent.idTask}/0`, `state=${state.state}`)
   }
 }
 
 function newEpic(state){
-  let idBoard = getTasks(state)[0].idBoard
+  let idBoard = props.idBoard // tasksIndexed.value.get(state)[0].idBoard
   window.electronAPI.openEpicPage(`board/${idBoard}/epic/0`, `state=${state.state}`)
 }
 
@@ -380,15 +468,6 @@ function showLess(state){
   console.log(`show ${limit} tasks on ${state.state}`)
 }
 
-// watch(
-//   props.expandState,
-//   async(state, oldVal) => {
-//     let number = stateTasksLength.value.get(state)
-//     stateDisplayLimit.value.set(state, number)
-//     console.log(`show ${number} tasks on ${state}`)
-//   }
-// )
-
 </script>
 
 <template>
@@ -401,14 +480,16 @@ function showLess(state){
         {{ state.state }} <span><small>{{ stateTasksLength.get(state) }} </small></span>
       </div>
       <div :class="`state_${state.state}`" :id="`container_${state.state.replace(' ', '_')}`">
-        <div v-for="task in getTasks(state)" :key="task.uiKey">
-          <TMEpic :id="`epic-card-${task.idEpic}`" :epic="task" v-if="task.idEpic && !task.idTask"
+        <div v-for="task in epicsIndexed.get(state.state)" :key="task.uiKey">
+          <TMEpic :id="`epic-card-${task.idEpic}`" :epic="task" v-show="task.displayIndex < stateDisplayLimit.get(state.state) || task.ghost"
                   @toggle-epic="$emit('toggle-epic', task)" @select="$emit('select', task)"
                   @dragstart="dragEpic($event, task, null)"
                   @dragover="dragOverEpic($event)" @dragleave="dragLeaveEpic($event)" @drop="dropEpic($event)"
                   @dblclick="$emit('maximize', task)"
           />
-          <TMTask :id="`task-card-${task.idTask}`" :task="task" v-if="task.idTask"
+        </div>
+        <div v-for="task in tasksIndexed.get(state.state)" :key="task.uiKey">
+          <TMTask :id="`task-card-${task.idTask}`" :task="task"  v-show="task.displayIndex < stateDisplayLimit.get(state.state) || task.ghost || task.justAdded"
                   @dblclick="$emit('maximize', task)"
                   @toggle-detail="$emit('toggle-detail', task)"
                   @select="$emit('select', task)"

@@ -45,13 +45,14 @@
             </table>
           </div>
         </q-btn-dropdown>
-        <q-btn-dropdown dense icon="account_circle" :label="store.getCurrentUser">
+        <q-btn-dropdown dense icon="account_circle" :label="currentUsername">
           <q-card  style="min-width: 350px">
             <q-card-section>
               <div class="text-h6">Enter your credentials</div>
             </q-card-section>
             <q-card-section class="q-pt-none">
-              <q-input label="API Url" name="apiUrl" v-model="apiURL" autofocus></q-input>
+              <q-input label="Data API Url" name="apiUrl" v-model="apiURL" autofocus></q-input>
+              <q-input label="Messenger service host:port" name="messengerHostPort" v-model="messengerHostPort" autofocus></q-input>
               <q-input label="username" name="username" v-model="credsUsername" ></q-input>
               <q-input label="password" name="password" type="password" v-model="credsPassword"></q-input>
             </q-card-section>
@@ -250,7 +251,7 @@
             Drop Tasks or subtask here to track "what's next"
             </div>
             <div v-for="task in taskQueue" :key="task.idTask">
-              <TMTask :task="task" :id="`queue-task-card-${task.idTask}`" @select="(t)=>{onQueueTaskSelected(t);openSearchResult(t);}" />
+              <TMTask class="task" :task="task" :id="`queue-task-card-${task.idTask}`" @select="(t)=>{onQueueTaskSelected(t);openSearchResult(t);}" />
             </div>
             <q-btn-dropdown color="primary" label="Queue Actions" :disable="queueSelectedTask==null" auto-close>
               <q-list>
@@ -420,9 +421,9 @@ a {
   align-content: stretch;
   width: 100%;
   border: solid 1px black;
-  min-height: 500px;
+/*   min-height: 500px; */
   margin: 16px;
-  height: 2350px;
+/*  height: 2350px; */
   margin: 0px;
 }
 
@@ -551,16 +552,8 @@ div.queueContainer {
   margin-top: 8px;
 }
 
-.queueSelectedTask{
-  /* box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75) */
+div.task.queueSelectedTask{
   background-color: lightyellow;
-  border-radius: 6px;
-  min-height: 60px;
-  padding: 4px;
-  margin-bottom: 4px;
-  margin-top: 4px;
-  margin-left: 2px;
-  margin-right: 2px;
 }
 
 div.queueDragOverContainer {
@@ -582,16 +575,8 @@ div.queueDragOverContainer {
     stroke: white;
   }
 
-  .queueSelectedTask{
-    /* box-shadow: 10px 8px 8px rgba(0, 0, 0, 0.75) */
+  div.task.queueSelectedTask{
     background-color: #5b5c67;
-    border-radius: 6px;
-    min-height: 60px;
-    padding: 4px;
-    margin-bottom: 4px;
-    margin-top: 4px;
-    margin-left: 2px;
-    margin-right: 2px;
   }
 
 }
@@ -613,14 +598,14 @@ import {
   nextTick,
   onUnmounted
 } from 'vue'
-import { callApi, callApiLogin, callLogout, Timeline  } from 'src/common'
-import { useSessionStore } from 'stores/user_session';
+import { callApi, callApiLogin, callLogout, Timeline, store_configuration  } from 'src/common'
+//import { useSessionStore } from 'stores/user_session';
 import { useUISessionStore } from 'stores/ui_state';
 import { useRouter } from "vue-router";
 import TMTask from "components/tmTask.vue";
 import TmTaskDescription from "components/tmTaskDescription.vue";
 const router = useRouter();
-const store = useSessionStore()
+//const store = useSessionStore()
 const uiStore = useUISessionStore()
 import {
   BoardTask,
@@ -632,6 +617,7 @@ defineOptions({
 })
 
 let loadComplete=false
+const currentUsername = ref("")
 const boards = ref([])
 const currentBoard = ref(null)
 provide('currentBoardId', currentBoard)
@@ -673,7 +659,8 @@ const showSubtaskNumber = ref(0)
 let searchText = ref("")
 const credsUsername = ref("");
 const credsPassword = ref("");
-const apiURL = ref("http://localhost:5000")
+const apiURL = ref("http://localhost:5437")
+const messengerHostPort = ref("localhost:50052")
 let allProjects = []
 let selectedTask = ref()
 let timelineObject = ref(null)
@@ -728,6 +715,24 @@ onBeforeMount(()=>{
 
 onMounted(async ()=>{
   console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+    credsUsername.value = config.user
+    currentUsername.value = config.user
+    rightDrawerWidth.value = Number(config.rightDrawerWidth ? config.rightDrawerWidth : 500)
+    if (config.apiURL){
+      apiURL.value = config.apiURL
+    }
+    if (config.messengerHostPort){
+      messengerHostPort.value = config.messengerHostPort
+    }
+  }
   await getData()
 })
 
@@ -852,11 +857,14 @@ function toggleRightDrawer () {
 
 
 async function doLogin() {
-  store.setApiURL(apiURL.value)
-  window.electronAPI.saveConfiguration({
+  //store.setApiURL(apiURL.value)
+  await window.electronAPI.saveConfiguration({
     user: credsUsername.value,
     apiURL: apiURL.value,
+    messengerHostPort: messengerHostPort.value
   })
+  let config = await window.electronAPI.getConfiguration()
+  store_configuration(config)
   let l = await callApiLogin(credsUsername.value, credsPassword.value)
   if (l){
     console.log('Login succeed, getting data')
@@ -871,25 +879,12 @@ function doLogout() {
 async function getData() {
   console.log('Hello')
   loadComplete=false
-  let config = await window.electronAPI.getConfiguration()
-  if (config) {
-    console.log('Loaded configuration')
-    console.log(config)
-    if (!config){
-      return
-    }
-    credsUsername.value = config.user
-    rightDrawerWidth.value = Number(config.rightDrawerWidth ? config.rightDrawerWidth : 500)
-    apiURL.value = config.apiURL
-    store.setApiURL(config.apiURL)
-    if (config.token && config.user){
-      store.setCurrentUser(config.user, config.token)
-    }
-  }
   let whoami = await callApi('GET', 'whoami')
   if (!whoami){
     console.log('Not logged in.')
+    return
   }
+  window.electronAPI.setWhoAmi(whoami.user)
   let apiCallBoards = callApi('GET', 'user/boards')
   let bs = await apiCallBoards
   boards.value = []
@@ -1070,24 +1065,28 @@ watch(
 watch(
   currentBoard,
   async (newVal, oldVal) =>{
-    queueSelectedTask.value=null
-    let boardQueue=[]
-    let queue = await callApi('GET', `user/boards/${newVal}/queue/`)
-    if (queue==null || queue.queue==null){
-      taskQueue.value=boardQueue
-      return
-    }
-    for(let element of queue.queue){
-      if (!allTaskMap.has(element)){
-        console.log('There is no task map for element in queue', element)
-        continue
-      }
-      let theTask = allTaskMap.get(element)
-      boardQueue.push(theTask)
-    }
-    taskQueue.value=boardQueue
+    await readTaskQueue(newVal)
   }
 )
+
+async function readTaskQueue(board){
+  queueSelectedTask.value=null
+  let boardQueue=[]
+  let queue = await callApi('GET', `user/boards/${board}/queue/`)
+  if (queue==null || queue.queue==null){
+    taskQueue.value=boardQueue
+    return
+  }
+  for(let element of queue.queue){
+    if (!allTaskMap.has(element)){
+      console.log('There is no task map for element in queue', element)
+      continue
+    }
+    let theTask = allTaskMap.get(element)
+    boardQueue.push(theTask)
+  }
+  taskQueue.value=boardQueue
+}
 
 function addClassToElement(element, aClass){
   let el = document.getElementById(element)
@@ -1228,6 +1227,7 @@ function getCalendarActivityColor(aDate){
 
 function setTentativeIfNotSet(){
   if (timelineObject.value != null && timelineObject.value.tentativePeriod===-1) {
+    console.log('setting tentative period')
     timelineObject.value.startTentativePeriod(pomodoroData, allProjects)
   }
   if (timelineObjectHor.value != null && timelineObjectHor.value.tentativePeriod===-1) {
@@ -1339,11 +1339,11 @@ async function updateAndShowTask(task){
 function onQueueTaskSelected(task){
   if (queueSelectedTask.value && document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`)){
     document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`).classList.remove("queueSelectedTask")
-    document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`).classList.add("task")
+    //document.getElementById(`queue-task-card-${queueSelectedTask.value.idTask}`).classList.add("task")
   }
   queueSelectedTask.value=task
   document.getElementById(`queue-task-card-${task.idTask}`).classList.add("queueSelectedTask")
-  document.getElementById(`queue-task-card-${task.idTask}`).classList.remove("task")
+  //document.getElementById(`queue-task-card-${task.idTask}`).classList.remove("task")
 }
 
 function getCanvasContainer(element) {
@@ -1487,16 +1487,30 @@ function handleCanvasClick(event){
   }
 }
 
+window.electronAPI.onTaskUpdate(async(idTask) => {
+  console.log(`got signal of an updated task: ${idTask}`)
+  let updated=false
+  for (let task of taskQueue.value) {
+    if(task.idTask===idTask){
+      taskQueue.value = []
+      await nextTick()
+      updated=true
+      break
+    }
+  }
+  await readTaskQueue(currentBoard.value)
+})
+
 window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   // console.log('Get message from pomodoro:')
   // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'pomodoroTaskStart':
       console.log('pomodoroTaskStart')
-      pomodoroSessions.value=[false, false, false, false, false, false, false, false]
+      //pomodoroSessions.value=[false, false, false, false, false, false, false, false]
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
       setTentativeIfNotSet()
-      pomodoroSessions.value[pomodoroData.session] = true;
+      //pomodoroSessions.value[pomodoroData.session] = true;
       break
     case 'updateTimer':
       //console.log('pomodoro tick')
@@ -1527,8 +1541,8 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
       break
     case 'pomodoroEnd':
       document.getElementById('boxRing').play()
-      pomodoroSessions.value[pomodoroData.session] = false
-      pomodoroSessions.value[pomodoroMsg.value] = true;
+      //pomodoroSessions.value[pomodoroData.session] = false
+      //pomodoroSessions.value[pomodoroMsg.value] = true;
       pomodoroData.session = pomodoroMsg.value
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
       if(timelineObject.value!=null){

@@ -19,6 +19,10 @@ const props = defineProps({
   tasks: {
     type: Array,
     required: true,
+  },
+  idBoard: {
+    type: String,
+    required: true,
   }
 })
 
@@ -71,7 +75,7 @@ function superTaskDetail(){
                 tasklists: true, openLinksInNewWindow: true, moreStyling: true }" />
   </div>
 
-  <TMKanban :parent="task" :tasks="tasks" :states="states"
+  <TMKanban :parent="task" :tasks="tasks" :states="states" :id-board="idBoard"
             @select="(subTask)=>{$emit('select', subTask)}"
             @maximize="(t)=>$emit('maximize', t)"
   />
