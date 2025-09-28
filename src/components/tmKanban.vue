@@ -37,6 +37,10 @@ const props = defineProps({
   idBoard: {
     type: String,
     required: true,
+  },
+  idPrefix: {
+    type: String,
+    required: false,
   }
 })
 
@@ -133,40 +137,6 @@ let tasksIndexed = computed(()=>{
   return result
 })
 
-// function getTasks(state){
-//   if (!stateDisplayLimit.value.has(state.state)) {
-//     stateDisplayLimit.value.set(state.state, 7)
-//   }
-//   let result = []
-//   if (props.parent==null){
-//     // console.log(`Root node, returning ${state.tasks.length} tasks with state ${state.state}`)
-//     // console.log(`Root node, returning ${state.epics?.length} epics with state ${state.state}`)
-//     result = rootElements.value.filter((e)=> e.state === state.state)
-//     let idx = 0;
-//     for (let task of result){
-//       task.displayIndex = idx
-//     }
-//   } else {
-//     // console.log('get sub-Tasks')
-//     // console.log(props.tasks)
-//     // console.log(`container has ${tasks.length} tasks`)
-//     let idx = 0;
-//     for (let task of props.tasks){
-//         //console.log(task.key)
-//         if (task.state === state.state){
-//           task.displayIndex = idx
-//           result.push(task)
-//         }
-//     }
-//     //console.log(`and ${r.length} tasks of state ${state.state}`)
-//   }
-//   stateTasksLength.value.set(state.state, result.length)
-//   //return result.slice(0, stateDisplayLimit.value.get(state.state))
-//
-//   return result
-// }
-
-
 function newTask(state){
   let idBoard = props.idBoard  //tasksIndexed.value.get(state)[0].idBoard
   console.log(state.state, idBoard, props.parent)
@@ -189,12 +159,12 @@ function newEpic(state){
   window.electronAPI.openEpicPage(`board/${idBoard}/epic/0`, `state=${state.state}`)
 }
 
-function dragOverTask(event){
+function dragOverStateColumn(event){
   if (event.preventDefault) {
     event.preventDefault();
   }
   //dummy()
-  //console.log(event.currentTarget.id)
+  console.log('dragOverStateColumn', event.currentTarget.id)
   let isValid = dropTargetIsValid(event.currentTarget.id)
   if (isValid){
     //console.log(`dragover: ${event.currentTarget.id}`)
@@ -206,7 +176,7 @@ function dragOverTask(event){
   return isValid
 }
 
-function dragLeaveTask(event){
+function dragLeaveStateColumn(event){
   if (event.preventDefault) {
     event.preventDefault();
   }
@@ -231,7 +201,7 @@ function copyTaskItems(aList, thisId){
   return result
 }
 
-async function dropTask(event){
+async function dropOverStateColumn(event){
   if (event.preventDefault) {
     event.preventDefault();
   }
@@ -242,8 +212,16 @@ async function dropTask(event){
   let dropTarget = document.getElementById(event.currentTarget.id)
   if (isValid) {
     console.log(`DROP! task: ${data.id}.state = ${data.state} -> ${dropTarget.id}`)
-    let dropResult = await callApi("POST", `user/boards/${data.board}/tasks/${data.id}/dragged_to`,
-      {target: dropTarget.id, idBoard: data.board})
+    let dropResult
+    if (data.kind === 'task'){
+      dropResult = await callApi("POST", `user/boards/${data.board}/tasks/${data.id}/dragged_to`,
+        {target: dropTarget.id, idBoard: data.board})
+    }
+    else if (data.kind === 'epic'){
+      dropResult = await callApi("POST", `user/boards/${data.board}/epics/${data.id}/dragged_to`,
+        {target: dropTarget.id, idBoard: data.board})
+      location.reload()
+    }
     console.log(dropResult)
     uiStore.setNewState4Task(data.id, dropResult.task.state)
 
@@ -296,13 +274,12 @@ async function dropTask(event){
 }
 
 function dragTask(event, task, parent){
-  //task, parentTask
-  //let taskUI = document.getElementById(event.target.id)
-  //props.parent
-
   event.dataTransfer.effectAllowed = 'move'
   event.dataTransfer.dropEffect = 'move'
-  let data = {id: task.idTask, state: task.state, project: task.idProject, board: task.idBoard}
+  console.log('dragTask')
+  console.log(task)
+  console.log(parent)
+  let data = {id: task.idTask, kind: 'task', state: task.state, project: task.idProject, board: task.idBoard}
   if (parent){
     if(parent.idTask){
       data.parentTask = parent.idTask
@@ -314,15 +291,27 @@ function dragTask(event, task, parent){
   console.log('drag data')
   console.log(data)
   event.dataTransfer.setData('text/tm2000task', JSON.stringify(data))
-  if (parent.idTask) {
+  if (parent && parent.idTask) {
     dragInitialState = `task_${parent.idTask}_${task.state.replace(' ','_')}`
   }
-  else if (parent.idEpic){
+  else if (parent && parent.idEpic){
     dragInitialState = `epic_${parent.idEpic}_${task.state.replace(' ','_')}`
   }
   else{
     dragInitialState = `main_${task.state.replace(' ','_')}`
   }
+}
+
+function dragEpic(event, epic){
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.dropEffect = 'move'
+  console.log('dragEpic')
+  console.log(epic)
+  let data = {id: epic.idEpic, kind: 'epic', state: epic.state, project: epic.idProject, board: epic.idBoard}
+  console.log('drag data')
+  console.log(data)
+  event.dataTransfer.setData('text/tm2000task', JSON.stringify(data))
+  dragInitialState = `main_${epic.state.replace(' ','_')}`
 }
 
 function dragOverTask2(event){
@@ -363,7 +352,7 @@ function dropTargetIsValid(id, data=null){
   //console.log(`drop1: id != dragInitialState: ${id} != ${dragInitialState}`)
   let differentState = id !== dragInitialState
   if (data){
-    let extractor = /(main_|epic_|task_\d+_)(.+)/
+    let extractor = /(main_|epic_\d+_|task_\d+_)(.+)/
     let match = extractor.exec(id)
     differentState = data.state.replace(' ','_') !== match[2]
     //console.log(`drop.differentState= ${differentState} = ${data.state.replace(' ','_')} !== ${match[2]}`)
@@ -468,33 +457,36 @@ function showLess(state){
   console.log(`show ${limit} tasks on ${state.state}`)
 }
 
+// @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
+
 </script>
 
 <template>
   <div class="row">
     <div v-for="state in states" :key="state.state" :class="`col stateColumn state_${state.state.replace(' ','_')}`"
-         @dragover="dragOverTask($event)" @dragleave="dragLeaveTask($event)" @drop="dropTask($event)"
-         :id="`main_${state.state.replace(' ','_')}`"
+         @dragover="dragOverStateColumn($event)" @dragleave="dragLeaveStateColumn($event)"
+         @drop="dropOverStateColumn($event)"
+         :id="`${idPrefix}_${state.state.replace(' ','_')}`"
     >
       <div class="stateTitle">
         {{ state.state }} <span><small>{{ stateTasksLength.get(state) }} </small></span>
       </div>
       <div :class="`state_${state.state}`" :id="`container_${state.state.replace(' ', '_')}`">
-        <div v-for="task in epicsIndexed.get(state.state)" :key="task.uiKey">
-          <TMEpic :id="`epic-card-${task.idEpic}`" :epic="task" v-show="task.displayIndex < stateDisplayLimit.get(state.state) || task.ghost"
-                  @toggle-epic="$emit('toggle-epic', task)" @select="$emit('select', task)"
-                  @dragstart="dragEpic($event, task, null)"
-                  @dragover="dragOverEpic($event)" @dragleave="dragLeaveEpic($event)" @drop="dropEpic($event)"
-                  @dblclick="$emit('maximize', task)"
+        <div v-for="epic in epicsIndexed.get(state.state)" :key="epic.uiKey">
+          <TMEpic :id="`epic-card-${epic.idEpic}`" :epic="epic"
+                  v-show="epic.displayIndex < stateDisplayLimit.get(state.state) || epic.ghost"
+                  @toggle-epic="$emit('toggle-epic', epic)" @select="$emit('select', epic)"
+                  @dragstart="dragEpic($event, epic)"
+                  @dblclick="$emit('maximize', epic)"
           />
         </div>
         <div v-for="task in tasksIndexed.get(state.state)" :key="task.uiKey">
-          <TMTask :id="`task-card-${task.idTask}`" :task="task"  v-show="task.displayIndex < stateDisplayLimit.get(state.state) || task.ghost || task.justAdded"
+          <TMTask :id="`task-card-${task.idTask}`" :task="task"
+                  v-show="task.displayIndex < stateDisplayLimit.get(state.state) || task.ghost || task.justAdded"
                   @dblclick="$emit('maximize', task)"
                   @toggle-detail="$emit('toggle-detail', task)"
                   @select="$emit('select', task)"
                   @dragstart="dragTask($event, task, parent)"
-                  @dragover="dragOverTask2($event)" @dragleave="dragLeaveTask2($event)" @drop="dropTask2($event)"
           />
         </div>
         <div class="newTask" v-if="state.start">

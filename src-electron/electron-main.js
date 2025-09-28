@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, ipcMain, protocol, net, Notification, Menu } from 'electron'
+import { app, BrowserWindow, session, ipcMain, protocol, net, Notification, Menu, shell } from 'electron'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
@@ -124,10 +124,18 @@ async function createMainWindow () {
   /**
    * Initial window options
    */
+  let mainWindowWidth = 1200
+  let mainWindowHeight = 800
+  if (configuration.mainWindowWidth) {
+    mainWindowWidth = configuration.mainWindowWidth
+  }
+  if (configuration.mainWindowHeight) {
+    mainWindowHeight = configuration.mainWindowHeight
+  }
   mainWindow = new BrowserWindow({
     icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
-    width: 1200,
-    height: 800,
+    width: mainWindowWidth,
+    height: mainWindowHeight,
     useContentSize: true,
     webPreferences: {
       contextIsolation: true,
@@ -159,6 +167,15 @@ async function createMainWindow () {
   })
   ipcMain.on('tm2000-openEpicPage', (event, page, params=null)=>{
     openEpicWindow(page, params)
+  })
+  ipcMain.on('open-external-link', (event, url)=>{
+    shell.openExternal(url);
+  })
+  ipcMain.on('notify-message', (event, message)=>{
+    new Notification({
+      title: 'TM2000/Pomodoro',
+      body: message
+    }).show()
   })
   ipcMain.handle('function:getConfiguration', getConfiguration)
   ipcMain.handle('function:getLocalNote', getLocalNote)
@@ -208,6 +225,10 @@ async function createMainWindow () {
     }
     mainWindow = null
   })
+  mainWindow.on('resize', ()=>{
+    const [width, height] = mainWindow.getSize()
+    saveConfiguration({mainWindowWidth: width, mainWindowHeight: height})
+  })
 }
 
 function openWindow(page, params, options={}){
@@ -225,10 +246,18 @@ function openWindow(page, params, options={}){
     return aWindow;
   }
   else {
+    let windowWidth = 1024
+    let windowHeight = 768;
+    if (configuration[`${page}WindowWidth`]){
+      windowWidth = configuration[`${page}WindowWidth`]
+    }
+    if (configuration[`${page}WindowHeight`]){
+      windowHeight = configuration[`${page}WindowHeight`]
+    }
     let defaultOptions = {
       icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
-      width: 1024,
-      height: 768,
+      width: windowWidth,
+      height: windowHeight,
       useContentSize: true,
       webPreferences: {
         contextIsolation: true,
@@ -250,6 +279,13 @@ function openWindow(page, params, options={}){
         }
       }
       toolWindows.delete(page);
+    })
+    newWindow.on('resize', ()=>{
+      const [width, height] = newWindow.getSize()
+      let size = {}
+      size[`${page}WindowWidth`] = width
+      size[`${page}WindowHeight`] = height
+      saveConfiguration(size)
     })
     return newWindow
   }
@@ -435,10 +471,11 @@ function taskWatcherStreamingCall(client, user) {
   return new Promise((resolve, reject) => {
     console.log('taskWatcherStreamingCall')
     const call = client.SubscribeTaskWatcher({user: user})
-    call.on('data', async (task) => {
+    call.on('data', async (updatedTask) => {
       console.log('Received updated task')
-      console.log(task)
-      mainWindow.webContents.send('on-task-update', task.id_task)
+      console.log(updatedTask)
+      //console.log(task)
+      mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
     });
     call.on('status', status => {
       console.log(`[${requestId}] wanted = ${grpc.status[expectedCode]} got = ${grpc.status[status.code]}`);

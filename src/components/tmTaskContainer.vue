@@ -77,7 +77,7 @@ function superTaskDetail(){
 
   <TMKanban :parent="task" :tasks="tasks" :states="states" :id-board="idBoard"
             @select="(subTask)=>{$emit('select', subTask)}"
-            @maximize="(t)=>$emit('maximize', t)"
+            @maximize="(t)=>$emit('maximize', t)" :idPrefix="`task_${task.idTask}`"
   />
 </div>
 </template>

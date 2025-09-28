@@ -38,6 +38,7 @@ let previousUIStoreState = {
 
 const currentBoardId = inject('currentBoardId')
 const leftDrawerOpen = inject('leftDrawerOpen')
+const filterOutOldFinishedTasks = inject('filterOutOldFinishedTasks')
 // TODO: remove rightDrawerHeader, rightDrawerSubtasks, rightDrawerContent, rightDrawerContent2
 const rightDrawerOpen = inject('rightDrawerOpen')
 // const rightDrawerContent = inject('rightDrawerContent')
@@ -47,10 +48,11 @@ const rightDrawerOpen = inject('rightDrawerOpen')
 const headerTitle = inject('headerTitle')
 const headerIconShow = inject('headerIconShow')
 let dragInitialState = ''
-const clickPomodoroTimer = inject('clickPomodoroTimer')
+//const clickPomodoroTimer = inject('clickPomodoroTimer')
 const globalSelectedTask = inject('globalSelectedTask')
 const daysWithActivity = inject('daysWithActivity')
 const maximizedTask = ref(false)
+let updatingTaskNumber = 0
 
 const updater = reactive(new Map([['root', 'root_0']]))
 
@@ -114,8 +116,10 @@ async function getData(){
   let statesObjects= []
   let projectObjects= []
   let apiCallBoard = callApi('GET', `user/boards/${props.idBoard}`)
-  let apiCallBoardTasks = callApi('GET', `user/boards/${props.idBoard}/tasks`)
-  let apiCallBoardEpics = callApi('GET', `user/boards/${props.idBoard}/epics`)
+  let apiCallBoardTasks = callApi('GET', `user/boards/${props.idBoard}/tasks?`+
+    `filterOutOldFinishedTasks=${filterOutOldFinishedTasks.value}`)
+  let apiCallBoardEpics = callApi('GET', `user/boards/${props.idBoard}/epics`+
+    `?filterOutOldFinishedTasks=${filterOutOldFinishedTasks.value}`)
   let result = await apiCallBoard
   boardData.name= result.name
   for (let state of result.states) {
@@ -138,6 +142,7 @@ async function getData(){
   let filteredEpics = new Map()
   if (result.filtered){
     // when applying a filter, we're going to hide any epic w/o a filtered task.
+    console.log('filtered tasks')
     for (let task of result.tasks) {
       if (task.idEpic){
         filteredEpics.set(task.idEpic, true)
@@ -369,6 +374,8 @@ async function showSearchedTask(idTask, tryNumber=1){
 
 function setTaskData(task, activityMap, parentTaskId=null){
   let taskObject = new BoardTask(task, parentTaskId)
+  console.log('setTaskData')
+  console.log(taskObject)
   if (task.dueDate){
     // console.log(`Set ${task.key}.dueDate = ${task.dueDate}`)
     updateActivityDate(activityMap, 'due', task.dueDate)
@@ -397,12 +404,24 @@ function setTaskData(task, activityMap, parentTaskId=null){
 
 
 async function insertTask(idTask){
+  console.log(`Insert task ${idTask}`)
+  let existingTask = BoardTask.allTasks.find((t)=> t.idTask === idTask)
+  if (existingTask!=null){
+    console.log('Task already exists')
+    return
+  }
+  if (updatingTaskNumber === idTask){
+    console.log(`Already updating task with id ${idTask}`)
+    return;
+  }
+  updatingTaskNumber = idTask
+
   console.log('Insert Task')
   let result = true
   let activityMap = daysWithActivity.value
   let currentValues = await callApi('GET', `user/boards/${props.idBoard}/tasks/${idTask}`)
   currentValues.justAdded = true
-  if (currentValues.idEpic){
+  if (currentValues?.idEpic){
     console.log(`inserted new task ${idTask} into epic ${currentValues.idEpic}`)
     let taskObject = setTaskData(currentValues, activityMap)
     let epic = boardData.epics.find((e)=> e.idEpic === currentValues.idEpic)
@@ -440,39 +459,76 @@ async function insertTask(idTask){
     //insertTaskOnParentTask(taskObject)
   }
   daysWithActivity.value = activityMap
-  return result
+  updatingTaskNumber = 0
+  console.log('finish updateTask.insert')
 }
 
 async function updateTask(idTask){
   if (!idTask){
     return
   }
-  console.log(`Update or insert task ${idTask}`)
-  let task = BoardTask.allTasks.find(t => t.idTask == idTask)
-  if (task == null){
-    if (! await insertTask(idTask)){
-      console.log(`Could not insert task ${idTask}, refreshing data...`)
-      let scroll = window.scrollY
-      await getData();
-      window.scroll(0, scroll)
-    }
-    return
+  if (updatingTaskNumber === idTask){
+    console.log(`Already updating task with id ${idTask}`)
+    return;
   }
+  updatingTaskNumber = idTask
   console.log(`Updating task ${idTask}`)
+  let task = BoardTask.allTasks.find((t)=> t.idTask === idTask)
+  console.log(task)
   let currentValues = await callApi('GET', `user/boards/${props.idBoard}/tasks/${idTask}`)
+  currentValues.justAdded = true
   let prevState = task.state
   task.updateData(currentValues)
-  task.updateUIElements()
-  if (prevState !== currentValues.state) {
-    uiStore.setNewState4Task(idTask, currentValues.state)
+  if (task.parentTask!=null && task.parentTask.idEpic == null){
+    console.log('This is a subtask, parent is a root task. Trying to force parent task update')
+    let ptIdx = boardData.tasks.findIndex(t => t.idTask == task.parentTask.idTask)
+    boardData.tasks[ptIdx].subTasks = boardData.tasks[ptIdx].subTasks.slice()
+    console.log(`Updating task @ index ${ptIdx}`)
+    await nextTick()
   }
-  if (task.idTask === selectedTask.value.idTask){
+  else if (task.parentTask==null && task.idEpic==null){
+    // root task
+    //let ptIdx = boardData.tasks.findIndex(t => t.idTask == task.parentTask.idTask)
+    console.log('This is a root task')
+    boardData.tasks = BoardTask.rootTasks.slice()
+    await nextTick()
+  }
+  else if (task.parentTask==null && task.idEpic!=null && !task.isRoot){
+    console.log('This is an Epic task, searching parent epic...')
+    let epic = boardData.epics.find(e=> e.idEpic === task.idEpic)
+    console.log('found epic')
+    console.log(epic)
+    epic.subTasks = epic.subTasks.slice()
+    //await nextTick()
+  }
+  else if (task.parentTask!=null && task.parentTask.idEpic!=null && !task.isRoot) {
+    console.log('This is a subtask, which parent task has an epic')
+    let epic = boardData.epics.find(e=> e.idEpic === task.parentTask.idEpic)
+    console.log('found epic', epic)
+    let ptask = epic.subTasks.find(t=> t.idTask == task.parentTask.idTask)
+    console.log('found parent task', ptask)
+    ptask.subTasks = ptask.subTasks.slice()
+  }
+  else {
+    console.log("don't know which kind of task is this")
+  }
+  // console.log(`Previous state: ${prevState}. New state: ${currentValues.state}`)
+  // task.updateData(currentValues)
+  // task.updateUIElements()
+  // if (prevState !== currentValues.state) {
+  //   uiStore.setNewState4Task(idTask, currentValues.state)
+  //   console.log('task has parent?')
+  //   console.log(task)
+  // }
+  if (task.idTask === selectedTask.value?.idTask){
     selectedTask.value=null
     globalSelectedTask.value = null
     //selectedTask.value=task
     await nextTick()
     showTask(task)
   }
+  updatingTaskNumber = 0
+  console.log('finish updateTask.update')
 }
 
 function viewSubTask(subTask){
@@ -664,9 +720,28 @@ window.electronAPI.onRefresh(async() => {
 })
 
 
-window.electronAPI.onTaskUpdate(async(idTask) => {
-  console.log(`got signal of an updated task: ${idTask}`)
-  await updateTask(idTask)
+window.electronAPI.onTaskUpdate(async(idTask, idProject, op) => {
+  console.log(`got signal of an updated/inserted/moved task: ${idTask}`)
+  if (idProject > 0) {
+    let pIdx = boardData.projects.findIndex(p => p.idProject === idProject)
+    if (pIdx<0){
+      console.log(`Project ${idProject} not found on this board`)
+      return
+    }
+  }
+  if (op==='INSERT'){
+    await insertTask(idTask)
+  }
+  else if (op==='DELETE'){
+    console.log('Not implemented yet')
+  }
+  else if (op==='MOVE'){
+    console.log('Move operation not implemented yet, applying an update...')
+    await updateTask(idTask)
+  }
+  else {
+    await updateTask(idTask)
+  }
 })
 
 onMounted(async ()=>{
@@ -681,6 +756,30 @@ onMounted(async ()=>{
     store_configuration(config)
   }
   await getData()
+  document.addEventListener('click', async (event) => {
+    // Check if the clicked element or any of its parent elements is an <a> tag
+    let target = event.target;
+    while (target && target.tagName !== 'A') {
+      target = target.parentNode;
+    }
+
+    // If a link was clicked
+    //console.log(target.classList)
+    if (target && target.tagName === 'A' && target.href && target.classList?.contains('externalLink')) {
+      // Prevent the default behavior of the link
+      event.preventDefault();
+      if (event.ctrlKey) {
+        await navigator.clipboard.writeText(target.href);
+        window.electronAPI.notifyMessage(event, `Link ${target.href} was copied to the clipboard`);
+      }
+      else {
+        // Open the URL in the default browser
+        window.electronAPI.openExternalLink(event, target.href);
+      }
+      //const url = new URL(urlString);
+      //const domain = url.origin;
+    }
+  });
 })
 
 
@@ -722,7 +821,15 @@ async function updateAndShowTask(aTask=null){
 }
 
 uiStore.$subscribe(async (mutation, state) => {
+  // console.log('skipping old drag & drop state updater')
+  // return
   if (state.task2UpdateState.id > 0) {
+    console.log('uiStore.$subscribe')
+    if (updatingTaskNumber === state.task2UpdateState.id){
+      console.log(`Already updating task with id ${state.task2UpdateState.id}`)
+      return;
+    }
+    updatingTaskNumber = state.task2UpdateState.id
     let scroll = window.scrollY
     console.log(`Updating task state ${state.task2UpdateState.id} to ${state.task2UpdateState.state}`)
     //console.log(state)
@@ -768,6 +875,8 @@ uiStore.$subscribe(async (mutation, state) => {
     }
     uiStore.setNewState4Task(0, '?')
     setTimeout(`restoreYScroll(${scroll})`, 500)
+    updatingTaskNumber = 0
+    console.log('finish uiStore.$subscribe')
   }
 })
 
@@ -837,7 +946,7 @@ const maxiSubTask = computed(() => {
 
 <template>
   <div id="mainContainer" class="boardMainContainer" >
-    <TMKanban id="rootKanban" :key="updater.get('root')" ref="rootKanban" :id-board="props.idBoard"
+    <TMKanban idPrefix="main" :key="updater.get('root')" ref="rootKanban" :id-board="props.idBoard"
               :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
               @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
     <div v-for="epic in boardData.epics" :key="epic.uiKey" >

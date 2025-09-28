@@ -182,6 +182,7 @@ class BoardTask {
     this.xtraData= data.xtraData
     this.timeSpent= data.timeSpent
     this.timeSpentToday= data.timeSpentToday
+    this.jiraSelfLink = data.jiraSelfLink
   }
 
   //updateData(newData, parentTaskId=null){

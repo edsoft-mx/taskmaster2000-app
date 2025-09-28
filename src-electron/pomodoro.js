@@ -78,7 +78,7 @@ async function pomodoroToggle(){
   }
   else {
     console.log(`Resuming pomodoro ${pomodoroData.task}`)
-    grpcMessenger.StartPomodoroSession({user: currentUser}, function (err, response){
+    grpcMessenger.StartPomodoroSession({user: currentUser, task: pomodoroData.task}, function (err, response){
       console.log(response.session_number)
       console.log(response)
     })
@@ -455,8 +455,8 @@ function pomodoroWatcherStreamingCall(client, user) {
       //pomodoroData.notifiedEndOfBreak= false
       let notifyTaskStart = false
       notifyFirstTime = false
-      if (!notifyFirstTime && (status.active != pomodoroData.timerActive || status.session_number != pomodoroData.session )){
-        console.log('a chchchchchange...');
+      if (!notifyFirstTime && (status.active != pomodoroData.timerActive || status.session_number != pomodoroData.session  || (status._id_task && status.id_task !== pomodoroData.task?.id_task) )){
+        console.log('a change...');
         console.log(status);
         if (!status.task)
         {
@@ -473,6 +473,14 @@ function pomodoroWatcherStreamingCall(client, user) {
           })
         }
         else if (!pomodoroData.task) {
+          notifyTaskStart = true
+        }
+        else if (status._id_task && status.id_task !== pomodoroData.task?.id_task) {
+          await eventPropagate({
+            type: 'pomodoroTaskChanged',
+            value: pomodoroData.session,
+            pomodoroData: getPomodoroDataObject(),
+          })
           notifyTaskStart = true
         }
         pomodoroData.notifiedEndOfBreak= false

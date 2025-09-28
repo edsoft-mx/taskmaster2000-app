@@ -1,4 +1,6 @@
 <script setup >
+import TMTimeLine from "components/tmTimeline.vue";
+
 defineOptions({
   name: 'tm-weekly-timeline'
 });
@@ -179,16 +181,20 @@ async function getData(dataDateRange=null) {
     chartObject.destroy()
   }
   let currentWeek
+  // let meetings
   if (dataDateRange==null){
     let today = new Date();
     let sevenDaysAgo = new Date(today); // Create a copy of today's date
     sevenDaysAgo.setDate(today.getDate() - 7); // Subtract 7 days
-    dateRange.value.from= formatDate(sevenDaysAgo);
-    dateRange.value.to= formatDate(today);
+    dateRange.value = {from: formatDate(sevenDaysAgo), to: formatDate(today)}
     currentWeek = await callApi('GET', 'user/spent_time/week')
+    //meetings = await callApi('GET', `user/spent_time/ical/${dateRange.value.from}/${dateRange.value.to}`)
+    console.log('Set date range')
+    console.log(`${dateRange.value.from} - ${dateRange.value.to}`)
   }
   else {
     currentWeek = await callApi('GET', `user/spent_time/date_range/${dataDateRange.from}/${dataDateRange.to}`)
+    //meetings = await callApi('GET', `user/spent_time/ical/${dataDateRange.from}/${dataDateRange.to}`)
   }
   timelineObject.value = new Timeline(
     currentWeek,
@@ -288,47 +294,7 @@ function toRawObject(reactiveObject) {
   return rawObject;
 }
 
-function handleCanvasClick(event){
-  let c = document.getElementById(event.target.id)
-  if (!c){
-    c= getCanvasContainer(event.target)
-  }
-  const rect = c.getBoundingClientRect();
-  const y = event.clientY - rect.top
-  let theDay=c.id.substring(6)
-  let data= timelineObject.value.workDayData
-  let length = data.last - data.first
-  let conversion = length / data.canvasHeight
-  let value=  (conversion * y) + data.first
-  console.log(value)
-  console.log(timelineObject.value.workDayData)
-  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
-  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
-    // Before the first activity
-    console.log('Before first activity')
-  }
-  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
-    //After last activity
-    console.log('After last activity')
-  }
-  else {
-    let eventIndex=0
-    for (let ev of theDayData.intervals_with_idle){
-      console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
-      if (isWithinTimeInterval(value, ev)){
-        console.log('Event found!')
-        console.log(ev.taskKey +": "+ ev.task)
-        let data = toRawObject(timelineObject.value.events)
-        console.log('no proxy data?')
-        console.log(data)
-        window.electronAPI.shareTimeline(data)
-        window.electronAPI.openPage(`timeEntry`, `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`)
-        break
-      }
-      eventIndex++
-    }
-  }
-}
+
 
 onMounted(async ()=>{
   console.log('mounted')
@@ -375,45 +341,9 @@ window.electronAPI.onRefreshTimeline(async() => {
     <!--Bar id="chart1" :data="chart1Data" :options="chart1Options" /-->
     <canvas id="chart1"></canvas>
   </div>
-  <div class="flex-container">
-    <div class="flex-items" style="max-width: 70px">
-      <div>Time</div>
-      <div class="canvasContainer">
-        <svg class="canvas" id="canvasTimeline">
-          <line v-for="tick in timelineObject?.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
-            :y2="timelineObject.tickYPosition(tick)" />
-          <text v-for="tick in timelineObject?.workDayData.workingHours" :key="tick.epoch" x="0" :y="timelineObject.tickYPosition(tick)"  class="timeLine">
-            {{ tick.time }}
-          </text>
-        </svg>
-      </div>
-    </div>
-    <div v-for="dow in timelineObject?.workDayData.daysToShow" :key="dow" class="flex-items">
-      <div class="dowHeader">{{ timelineObject.workDayData.dayNameMap.get(dow) }}</div>
-      <div class="canvasContainer"><svg class="canvas" ref="canvases" :id="`canvas${dow}`" >
-        <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
-              :y2="timelineObject.tickYPosition(tick)" />
-        <line v-if="dow == timelineObject.workDayData.todayKey" stroke="red"
-              x1="0"  x2="100%" :y1="timelineObject.currentTime()" :y2="timelineObject.currentTime()"  />
-        <g v-for="interval in timelineObject.workDayIntervals(dow)" :key="interval.id">
-          <rect
-              x="0"
-              :y="timelineObject.getIntervalY(interval)"
-              width="100%"
-              :fill="interval.color"
-              stroke="white"
-              :height="timelineObject.getIntervalHeight(interval)"
-              :title="interval.task" />
-          <text x="2" :y="timelineObject.getIntervalY(interval)+16" v-if="timelineObject.isLongEnough4Text(interval)" class="taskTitle" >
-            <tspan x="2" dy="0">{{ interval.task }}</tspan>
-            <tspan x="2" dy="1.2em">{{ interval.taskKey }}</tspan>
-            <tspan x="2" dy="1.2em">{{ timelineObject.getTimeOfDay(interval.elapsed) }}</tspan>
-          </text>
-        </g>
-      </svg></div>
-    </div>
-
-  </div>
+  <TMTimeLine :include-breaks="includeBreaks" :only-billed="onlyBilled" uiId="tmMain"
+              :end-date="dateRange.to" :start-date="dateRange.from">
+  </TMTimeLine>
 
 </template>
 

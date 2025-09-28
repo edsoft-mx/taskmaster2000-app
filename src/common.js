@@ -123,13 +123,14 @@ export class Timeline {
       datasets: [],
       labels: [],
     }
-    this.tentativePeriod = -1
+    this.tentativePeriod = null
     this.pomodoroData = null
 
     this.events = events
     let first = events.start_of_day
     let last = events.end_of_day
     if (first===0){
+      console.log('No data about start/end of day')
       first = new Date()
       last = new Date()
       last.setHours(first.getHours() + 2)
@@ -148,7 +149,7 @@ export class Timeline {
     let firstHour
     let lastHour
     let workingHours = []
-    if (canvasWidth === 0){
+    if (canvasWidth === 0){ //vertical
       firstHour = Math.trunc(first / 3600) * 3600
       lastHour = (Math.trunc(last / 3600) + 1) * 3600
       for(let i = firstHour; i <= lastHour; i+=1800){
@@ -274,6 +275,40 @@ export class Timeline {
     }
   }
 
+  workDayMeetings(dow){
+    //dummy()
+    if (!this.workDayData || !this.workDayData.weeklyData){
+      return []
+    }
+    let dowData = this.workDayData.weeklyData.get(`${dow}`)
+    if (!dowData){
+      return []
+    }
+    let m = dowData?.meetings
+    if (m==null){
+      return []
+    }
+    // console.log(`Meetings for ${dow}`)
+    // console.log(m)
+    return m
+  }
+
+  getIntervalXi(interval, extra=0){
+    if (interval.collisions === 0){
+      return 0
+    }
+    let p = 100 / interval.collisions
+    return `${p * interval.column + extra }%`
+  }
+
+  getIntervalWidthColumn(interval){
+    if (interval.collisions === 0){
+      return "100%"
+    }
+    let p = 100 / interval.collisions
+    return `${p}%`
+  }
+
   getIntervalY(interval) {
     let y = (interval.start - this.workDayData.first) * this.workDayData.conversion
     // console.log(`${interval.task}.interval.x(${interval.start}) = ${x}`)
@@ -290,12 +325,18 @@ export class Timeline {
   getIntervalHeight(interval) {
     let h = interval.elapsed ? interval.elapsed * this.workDayData.conversion : 0
     // console.log(`${interval.task}.interval.w(${interval.elapsed}) = ${w}`)
+    if (h < 0){
+      h = 0
+    }
     return h
   }
 
   getIntervalWidth(interval) {
     let w = interval.elapsed ? interval.elapsed * this.workDayData.conversionX : 0
     //console.log(`${interval.task}.interval.w(${interval.elapsed}) = ${w}`)
+    if (w < 0){
+      w = 0
+    }
     return w
   }
 
@@ -398,27 +439,12 @@ export class Timeline {
   }
 
   updateTentativePeriod(){
-    if (this.tentativePeriod >= 0){
-      //console.log('Updating tentative period...')
-      let item = this.workDayIntervals(this.workDayData.todayKey)[this.tentativePeriod]
-      //console.log(item)
-      if (item == null){
-        console.log("Can't find tentative period")
-        return
-      }
-      item.elapsed= (Date.now() - this.pomodoroData.start) / 1000
-      // console.log('Pomodoro Data')
-      // console.log(this.pomodoroData)
-      // console.log(Date.now())
-      // // convertJSTsToChart(Date.now()) - convertJSTsToChart(pomodoroData.task.workingIntervalStart)
-      // // console.log(`tentative period elapsed: ${item.elapsed}`)
-      this.workDayIntervals(this.workDayData.todayKey)[this.tentativePeriod] = item
-      // console.log('Updated tentative period')
-      //console.log(item)
+    if (this.tentativePeriod !=null){
+      this.tentativePeriod.elapsed= (Date.now() - this.pomodoroData.start) / 1000
     }
   }
 
-  startTentativePeriod(pomodoroData, allProjects){
+  startTentativePeriod(pomodoroData, forceEnd=false){
     let epochType = typeof pomodoroData.epoch;
     let epoch = 0
     console.log('startTentativePeriod')
@@ -428,7 +454,7 @@ export class Timeline {
       if (pomodoroData.timerActive){
         console.log(`Tentative period end epoch @ ${pomodoroData.epoch}`)
         epoch = this.convertJSTsToChart(pomodoroData.epoch)
-        if (!this.forceEndOfDay) {
+        if (!this.forceEndOfDay || forceEnd) {
           let first = this.events.start_of_day
           let last = this.events.end_of_day
           if (epoch > last){
@@ -442,11 +468,7 @@ export class Timeline {
           this.workDayData.last = last
         }
         if (pomodoroData.task){
-          let prj = allProjects.find(p => p.idProject === pomodoroData.task.id_project)
-          if (prj==null){
-            console.log(`Could not find project ${pomodoroData.task.id_project} on pomodoro.startTentativePeriod`)
-          }
-          color = prj.color
+          color = pomodoroData.task.color //  prj.color
         }
         else {
           console.log('Pomodoro data has no task set')
@@ -462,11 +484,13 @@ export class Timeline {
           elapsed: 0,
           task: pomodoroData.task?.title,
           taskKey: pomodoroData.task?.key,
+          collisions: 0,
+          counter: -1,
+          column: 0,
         }
-        //workDayCurrentInterval = currentInterval
-        let todayIntervals =  this.workDayIntervals(this.workDayData.todayKey)
-        this.tentativePeriod = todayIntervals.length
-        todayIntervals.push(currentInterval)
+        console.log('Tentative period has been set:')
+        console.log(currentInterval)
+        this.tentativePeriod = currentInterval
         this.pomodoroData = pomodoroData
       }
       else {
@@ -478,40 +502,41 @@ export class Timeline {
     }
   }
 
-  getTentativePeriod(pomodoroData){
-    let result = {
-      active: false,
-      interval: {}
-    }
-    let epochType = typeof pomodoroData.epoch;
-    let epoch = 0
-    if (epochType!=='number' && pomodoroData.epoch != null && this.tentativePeriod >= 0){
-      if (pomodoroData.timerActive){
-        result.interval = this.workDayIntervals(this.workDayData.todayKey)[this.tentativePeriod]
-        result.active = true
-      }
-    }
-    return result
-  }
+  // getTentativePeriod(pomodoroData){
+  //   let result = {
+  //     active: false,
+  //     interval: {}
+  //   }
+  //   let epochType = typeof pomodoroData.epoch;
+  //   let epoch = 0
+  //   if (epochType!=='number' && pomodoroData.epoch != null && this.tentativePeriod >= 0){
+  //     if (pomodoroData.timerActive){
+  //       result.interval = this.tentativePeriod;
+  //         //this.workDayIntervals(this.workDayData.todayKey)[this.tentativePeriod]
+  //       result.active = true
+  //     }
+  //   }
+  //   return result
+  // }
 
-  restoreTentativePeriod(pomodoroData, interval){
-    let epochType = typeof pomodoroData.epoch;
-    let epoch = 0
-    if (epochType!=='number' && pomodoroData.epoch != null){
-      if (!this.forceEndOfDay){
-        epoch =  this.convertJSTsToChart(pomodoroData.epoch.getTime())
-        let first = this.events.start_of_day
-        let last = this.events.end_of_day
-        let allDayLength = epoch < last  ? last - first : epoch - first
-        this.workDayData.length= allDayLength
-        this.workDayData.conversion= this.workDayData.canvasHeight / allDayLength
-        this.workDayData.conversionX= this.workDayData.canvasWidth / allDayLength
-      }
-      this.tentativePeriod = this.workDayIntervals(this.workDayData.todayKey).length
-      this.workDayIntervals(this.workDayData.todayKey).push(interval)
-      this.pomodoroData = pomodoroData
-    }
-  }
+  // restoreTentativePeriod(pomodoroData, interval){
+  //   let epochType = typeof pomodoroData.epoch;
+  //   let epoch = 0
+  //   if (epochType!=='number' && pomodoroData.epoch != null){
+  //     if (!this.forceEndOfDay){
+  //       epoch =  this.convertJSTsToChart(pomodoroData.epoch.getTime())
+  //       let first = this.events.start_of_day
+  //       let last = this.events.end_of_day
+  //       let allDayLength = epoch < last  ? last - first : epoch - first
+  //       this.workDayData.length= allDayLength
+  //       this.workDayData.conversion= this.workDayData.canvasHeight / allDayLength
+  //       this.workDayData.conversionX= this.workDayData.canvasWidth / allDayLength
+  //     }
+  //     this.tentativePeriod = this.workDayIntervals(this.workDayData.todayKey).length
+  //     this.workDayIntervals(this.workDayData.todayKey).push(interval)
+  //     this.pomodoroData = pomodoroData
+  //   }
+  // }
 
   currentTime(){
     let epoch = Date.now()

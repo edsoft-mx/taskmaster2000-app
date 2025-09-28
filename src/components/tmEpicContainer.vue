@@ -83,7 +83,7 @@ function epicDetail(){
     <TMKanban :parent="epic" :tasks="tasks" :states="states" :id-board="idBoard"
               @toggle-detail="(element)=>{$emit('toggle-detail',element)}"
               @select="(subTask)=>{$emit('select', subTask)}"
-              @maximize="(t)=>$emit('maximize', t)"
+              @maximize="(t)=>$emit('maximize', t)" :idPrefix="`epic_${epic.idEpic}`"
     />
     <div v-for="task in tasks" :key="task.uiKeyContainer" style="margin-left:32px;">
       <div v-if="task.expanded && task.hasSubTasks" >

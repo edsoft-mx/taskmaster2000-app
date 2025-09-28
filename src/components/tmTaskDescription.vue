@@ -204,6 +204,11 @@ watch(
   {deep: true}
 )
 
+function getJiraLink(selfLink){
+  const url = new URL(selfLink);
+  const domain = url.origin;
+  return `${domain}/browse/${props.task.key}`;
+}
 
 
 </script>
@@ -213,7 +218,9 @@ watch(
   <slot name="title">
     <h3>
       <img class="taskIcon" :src="`${task.taskType}.png`">&nbsp;
-      <strong>{{ task.key }}</strong> | {{ project.name }}
+      <span v-if="!task.jiraSelfLink"><strong>{{ task.key }}</strong></span>
+      <span v-if="task.jiraSelfLink"><strong><a class="externalLink" :href="getJiraLink(task.jiraSelfLink)">{{ task.key }}</a></strong></span>
+      | {{ project.name }}
       <p style="margin-top: 6px;">
       {{ task.title }}{{ task.idEpic && !task.idTask? task.epic:"" }}
       </p>

@@ -7,66 +7,48 @@
           {{ headerTitle }}
         </q-toolbar-title>
 
-        <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="32px" class="timescale" id="canvasWorkDay" >
-          <defs>
-            <linearGradient id="horzGrad1">
-              <stop offset="0%" stop-opacity="85" />
-              <stop offset="50%" stop-opacity="0" />
-              <stop offset="100%" stop-opacity="85" />
-            </linearGradient>
-          </defs>
-          <rect v-for="interval in timelineObjectHor?.workDayIntervals(timelineObject.workDayData.todayKey)"
-                :x="timelineObjectHor.getIntervalX(interval)" :key="interval.id"
-                y="0" height="100%" :fill="interval.color" stroke="white"
-                :fill-opacity="interval?.tentative ? '70%' : '100%'"
-                :width="timelineObjectHor.getIntervalWidth(interval)" />
-        </svg>
-        <q-btn-dropdown dense dropdown-icon="query_builder">
-          <div >
-            <table class="timespentReport">
-              <thead>
-              <tr>
-                <th>Project</th>
-                <th>Duration</th>
-                <th>Task</th>
-                <th>Start</th>
-                <th>End</th>
-              </tr>
-              </thead>
-              <tbody>
-              <tr v-for="interval in timelineObjectHor?.workDayData.intervalsWithIdle" :key="interval.start" >
-                <td :style="`background-color: ${interval.color}; text-align: center; color: white;`">{{ interval.project }}</td>
-                <td style="text-align: right;">{{ getInterval(interval.elapsed) }}</td>
-                <td>{{ interval.title }}</td>
-                <td style="text-align: right;">{{ getTime(interval.start) }}</td>
-                <td style="text-align: right;">{{ getTime(interval.end) }}</td>
-              </tr>
-              </tbody>
-            </table>
+
+          <q-space></q-space>
+
+          <div>
+            <p style="margin-bottom: 2px; max-width: 600px; text-overflow: ellipsis;  white-space: nowrap; overflow: hidden;">
+              {{ pomodoroData.task?.key }}{{ pomodoroData.task?" - ":"" }}{{ pomodoroData.task?.title }}
+            </p>
+
           </div>
-        </q-btn-dropdown>
-        <q-btn-dropdown dense icon="account_circle" :label="currentUsername">
-          <q-card  style="min-width: 350px">
-            <q-card-section>
-              <div class="text-h6">Enter your credentials</div>
-            </q-card-section>
-            <q-card-section class="q-pt-none">
-              <q-input label="Data API Url" name="apiUrl" v-model="apiURL" autofocus></q-input>
-              <q-input label="Messenger service host:port" name="messengerHostPort" v-model="messengerHostPort" autofocus></q-input>
-              <q-input label="username" name="username" v-model="credsUsername" ></q-input>
-              <q-input label="password" name="password" type="password" v-model="credsPassword"></q-input>
-            </q-card-section>
-            <q-card-section class="q-pt-none">
-              <q-item-label>Right Drawer Width</q-item-label>
-              <q-slider v-model="rightDrawerWidth" reverse :min="50" :max="750"/>
-            </q-card-section>
-            <q-card-actions align="right" class="text-primary">
-              <q-btn flat label="Cancel" v-close-popup></q-btn>
-              <q-btn flat label="Submit" v-close-popup @click="doLogin"></q-btn>
-            </q-card-actions>
-          </q-card>
-        </q-btn-dropdown>
+          <div style="margin-left: 8px;">
+
+            <q-avatar size="32px" :color="isSessionActive(1)">
+              <img src="to-work-in-an-office.png" title="Session 1">
+            </q-avatar>
+            <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
+            <q-avatar size="32px" :color="isSessionActive(3)">
+              <img src="to-work-in-an-office.png" title="Session 2">
+            </q-avatar>
+            <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
+            <q-avatar size="32px" :color="isSessionActive(5)">
+              <img src="to-work-in-an-office.png" title="Session 3">
+            </q-avatar>
+            <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
+            <q-avatar size="32px" :color="isSessionActive(7)">
+              <img src="to-work-in-an-office.png" title="Session 4">
+            </q-avatar>
+            <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
+          </div>
+          <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime">
+          </q-btn>
+
+
+        <q-space></q-space>
+
         <q-btn dense icon="view_sidebar" @click="toggleRightDrawer" />
+        <div style="margin-right: 8px;">&nbsp;&nbsp;</div>
+        <q-tabs v-model="rightDrawerTab" shrink  dense indicator-color="white" v-if="rightDrawerOpen">
+          <q-tab name="tabTodayTimeline" icon="today" />
+          <q-tab name="tabQueue" icon="list" />
+          <q-tab name="tabSummary" icon="info"  />
+          <q-tab name="tabFilters" icon="filter_alt" />
+        </q-tabs>
       </q-toolbar>
     </q-header>
 
@@ -148,10 +130,41 @@
           <q-item-section>Help</q-item-section>
         </q-item>
       </q-list>
+      <div style="margin-top: 16px; padding-left: 16px;">
+      <q-btn-dropdown dense icon="account_circle" :label="currentUsername" color="blue">
+        <q-card  style="min-width: 350px">
+          <q-card-section>
+            <div class="text-h6">Enter your credentials</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <q-input label="Data API Url" name="apiUrl" v-model="apiURL" autofocus></q-input>
+            <q-input label="Messenger service host:port" name="messengerHostPort" v-model="messengerHostPort" autofocus></q-input>
+            <q-input label="username" name="username" v-model="credsUsername" ></q-input>
+            <q-input label="password" name="password" type="password" v-model="credsPassword"></q-input>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <q-item-label>Right Drawer Width</q-item-label>
+            <q-slider v-model="rightDrawerWidth" reverse :min="50" :max="750"/>
+          </q-card-section>
+          <q-card-actions align="right" class="text-primary">
+            <q-btn flat label="Cancel" v-close-popup></q-btn>
+            <q-btn flat label="Submit" v-close-popup @click="doLogin"></q-btn>
+          </q-card-actions>
+        </q-card>
+      </q-btn-dropdown>
+      </div>
     </q-drawer>
 
     <q-drawer v-model="rightDrawerOpen" side="right" bordered :width="rightDrawerWidth">
       <q-tab-panels v-model="rightDrawerTab" animated v-if="rightDrawerOpen">
+        <q-tab-panel name="tabTodayTimeline" >
+          <keep-alive>
+            <TMTimeLine :include-breaks="timelineIncludeBreaks" :only-billed="false" uiId="tmRightSide"
+                        :end-date="today" :start-date="today" :pomodoroData="pomodoroData" />
+          </keep-alive>
+          <q-toggle v-model="timelineIncludeBreaks" label="Include break periods" />
+        </q-tab-panel>
+
         <q-tab-panel name="tabSummary" class="summary" >
           <tm-task-description :task="selectedTask"
                                :key="selectedTask?.uiKey ? selectedTask.uiKey :'view0'"
@@ -179,6 +192,7 @@
           <div v-for="tag in tagsSystem" :key="tag.idTag"  v-ripple>
             <q-toggle v-model="selectedTags" :val="`${tag.idTag}`" :label='tag.tag'  />
           </div>
+          <q-toggle v-model="filterOutOldFinishedTasks" label="Hide old finished tasks" />
           <q-toggle v-model="filterByDate" label="Activity on date range" />
           <div v-if="filterByDate">
             <q-date v-model="selectedDays" range today-btn  />
@@ -200,49 +214,7 @@
 
 
         </q-tab-panel>
-        <q-tab-panel name="tabTodayTimeline" >
-          <div class="flex-container">
-            <div class="flex-items" style="max-width: 54px">
-              <div>Time</div>
-              <div class="canvasContainer">
-                <svg class="canvas" id="canvasTimeline">
-                  <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%"
-                        :y1="timelineObject.tickYPosition(tick)" :y2="timelineObject.tickYPosition(tick)" />
-                  <text v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" x="0" :y="timelineObject.tickYPosition(tick)"  class="timeLine">
-                    {{ tick.time }}
-                  </text>
-                </svg>
-              </div>
-            </div>
-            <div v-for="dow in timelineObject?.workDayData.daysToShow" :key="dow" class="flex-items">
-              <div class="dowHeader">{{ timelineObject.workDayData.dayNameMap.get(dow) }}</div>
-              <div class="canvasContainer"><svg class="canvas" ref="canvases" :id="`canvas${dow}`">
-                <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
-                      :y2="timelineObject.tickYPosition(tick)" />
-                <g v-for="interval in timelineObject.workDayIntervals(dow)" :key="interval.id">
-                  <rect
-                    x="0"
-                    :y="timelineObject.getIntervalY(interval)"
-                    width="100%"
-                    :fill="interval.color"
-                    :fill-opacity="interval?.tentative ? '70%': '100%'"
-                    stroke="white"
-                    :height="timelineObject.getIntervalHeight(interval)"
-                    :title="interval.task" />
-                  <text x="2" :y="timelineObject.getIntervalY(interval)+16" v-if="timelineObject.isLongEnough4Text(interval)" class="taskTitle" >
-                    <tspan x="2" dy="0">{{ interval.task }}</tspan>
-                    <tspan x="2" dy="1.2em">{{ interval.taskKey }}</tspan>
-                    <tspan x="2" dy="1.2em">{{ timelineObject.getTimeOfDay(interval.elapsed) }}</tspan>
-                  </text>
-                </g>
-                <line v-if="dow == timelineObject.workDayData.todayKey" stroke="red"
-                      x1="0"  x2="100%" :y1="timelineObject.currentTime()" :y2="timelineObject.currentTime()+1"
-                />
-              </svg></div>
-            </div>
-          </div>
 
-        </q-tab-panel>
         <q-tab-panel name="tabQueue" >
           <b>Task Queue</b>
           <div class="queueContainer"
@@ -284,47 +256,7 @@
     </q-page-container>
 
     <q-footer class="text-white; text-align: center; bg-primary" id="mainFooter">
-      <q-toolbar>
 
-        <div>
-        <p style="margin-bottom: 2px; max-width: 600px; text-overflow: ellipsis;  white-space: nowrap; overflow: hidden;">
-            {{ pomodoroData.task?.key }}{{ pomodoroData.task?" - ":"" }}{{ pomodoroData.task?.title }}
-        </p>
-
-        </div>
-      <div style="margin-left: 8px;">
-
-        <q-avatar size="32px" :color="isSessionActive(1)">
-          <img src="to-work-in-an-office.png" title="Session 1">
-        </q-avatar>
-        <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
-        <q-avatar size="32px" :color="isSessionActive(3)">
-          <img src="to-work-in-an-office.png" title="Session 2">
-        </q-avatar>
-        <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
-        <q-avatar size="32px" :color="isSessionActive(5)">
-          <img src="to-work-in-an-office.png" title="Session 3">
-        </q-avatar>
-        <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
-        <q-avatar size="32px" :color="isSessionActive(7)">
-          <img src="to-work-in-an-office.png" title="Session 4">
-        </q-avatar>
-        <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
-
-      </div>
-        <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime">
-        </q-btn>
-        <q-space></q-space>
-
-
-        <q-tabs v-model="rightDrawerTab" shrink  dense indicator-color="white" v-if="rightDrawerOpen">
-          <q-tab name="tabSummary" icon="info"  />
-          <q-tab name="tabTodayTimeline" icon="today" />
-          <q-tab name="tabQueue" icon="list" />
-          <q-tab name="tabFilters" icon="filter_alt" />
-        </q-tabs>
-
-        </q-toolbar>
     </q-footer>
   </q-layout>
 </template>
@@ -611,7 +543,8 @@ import {
   BoardTask,
   allTaskMap
 } from 'src/commonObjects'
-
+import TMTimeLine from "components/tmTimeline.vue";
+import TMTimeLineH from "components/tmTimelineH.vue";
 defineOptions({
   name: 'MainLayout'
 })
@@ -630,10 +563,12 @@ const searchResults = ref([])
 const boardExecuteOp = ref({})
 const leftDrawerOpen = ref(true);
 const rightDrawerOpen = ref(true);
-const rightDrawerTab = ref('tabSummary')
+const rightDrawerTab = ref('tabTodayTimeline')
 const rightDrawerWidth = ref(500)
 const filterByDate = ref(false)
 const filterByStartOrDue = ref(false)
+const filterOutOldFinishedTasks = ref(true)
+provide('filterOutOldFinishedTasks', filterOutOldFinishedTasks)
 const selectedDay = ref("")
 const selectedDays = ref({})
 const selectedDaysStartOrDue = ref({})
@@ -648,6 +583,7 @@ provide('headerTitle', headerTitle)
 provide('leftDrawerOpen', leftDrawerOpen)
 provide('rightDrawerOpen', rightDrawerOpen)
 const showSubtaskNumber = ref(0)
+const timelineIncludeBreaks = ref(false)
 //const rightDrawerContent = ref("")
 //const rightDrawerContent2 = ref("")
 //const rightDrawerHeader = ref("")
@@ -663,11 +599,11 @@ const apiURL = ref("http://localhost:5437")
 const messengerHostPort = ref("localhost:50052")
 let allProjects = []
 let selectedTask = ref()
-let timelineObject = ref(null)
-let timelineObjectHor = ref(null)
-let canvasRefs = useTemplateRef('canvases')
-let canvasInited=false
-let tentativePeriod = null
+// let timelineObject = ref(null)
+// let timelineObjectHor = ref(null)
+// let canvasRefs = useTemplateRef('canvases')
+//let canvasInited=false
+//let tentativePeriod = null
 let previousUIState = {
   selectedTask: {},
   pomodoroSession: 0,
@@ -675,6 +611,8 @@ let previousUIState = {
 }
 let taskQueue = ref([])
 let queueSelectedTask = ref(null)
+// let today = ref(new Date().toISOString().split('T')[0].replaceAll('-','/'))
+let today = ref("")
 
 provide('globalSelectedTask', selectedTask)
 
@@ -703,7 +641,7 @@ const pomodoroSessions = ref([true, false, false, false, false, false, false, fa
 
 onBeforeMount(()=>{
   console.log('Before Mount')
-  canvasInited=false
+  //canvasInited=false
   let sp=new URLSearchParams(location.search)
   let pageParam = sp.get('page')
   sp.delete('page')
@@ -733,95 +671,98 @@ onMounted(async ()=>{
       messengerHostPort.value = config.messengerHostPort
     }
   }
+  const todayD = new Date();
+  console.log (`today is ${todayD.getFullYear()}/${todayD.getMonth()}/${todayD.getDate()}`);
+  today.value = `${todayD.getFullYear()}/${todayD.getMonth()+1}/${todayD.getDate()}`;
   await getData()
 })
 
-onUnmounted(async ()=> {
-  if (canvasRefs.value){
-    for (let c of canvasRefs.value){
-      c.removeEventListener('dblclick', handleCanvasClick)
-      c.removeEventListener('dblclick', handleCanvasDblClick)
-    }
-  }
-})
+// onUnmounted(async ()=> {
+//   if (canvasRefs.value){
+//     for (let c of canvasRefs.value){
+//       c.removeEventListener('dblclick', handleCanvasClick)
+//       c.removeEventListener('dblclick', handleCanvasDblClick)
+//     }
+//   }
+// })
 
-watch(rightDrawerTab, async ()=>{
-  if (!canvasInited){
-    await nextTick()
-    console.log('pre-canvas-ref code')
-    // console.log(canvasRefs.value)
-    // console.log(timelineObject.value.workDayData.daysToShow)
-    if (canvasRefs.value){
-      console.log('adding event listener to timeline')
-      for (let c of canvasRefs.value){
-        // console.log(c)
-        c.addEventListener('dblclick', handleCanvasDblClick)
-        c.addEventListener('click', handleCanvasClick)
-      }
-    }
-    canvasInited=true
-  }
-})
+// watch(rightDrawerTab, async ()=>{
+//   if (!canvasInited){
+//     await nextTick()
+//     console.log('pre-canvas-ref code')
+//     // console.log(canvasRefs.value)
+//     // console.log(timelineObject.value.workDayData.daysToShow)
+//     // if (canvasRefs.value){
+//     //   console.log('adding event listener to timeline')
+//     //   for (let c of canvasRefs.value){
+//     //     // console.log(c)
+//     //     c.addEventListener('dblclick', handleCanvasDblClick)
+//     //     c.addEventListener('click', handleCanvasClick)
+//     //   }
+//     // }
+//     // canvasInited=true
+//   }
+// })
 
-function getIntervalX(interval) {
-  let x = (interval.start - workDayData.first) * workDayData.conversion
-  // console.log(`${interval.task}.interval.x(${interval.start}) = ${x}`)
-  return x
-}
+// function getIntervalX(interval) {
+//   let x = (interval.start - workDayData.first) * workDayData.conversion
+//   // console.log(`${interval.task}.interval.x(${interval.start}) = ${x}`)
+//   return x
+// }
+//
+// function getIntervalWidth(interval) {
+//   let w = interval.elapsed * workDayData.conversion
+//   // console.log(`${interval.task}.interval.w(${interval.elapsed}) = ${w}`)
+//   return w
+// }
 
-function getIntervalWidth(interval) {
-  let w = interval.elapsed * workDayData.conversion
-  // console.log(`${interval.task}.interval.w(${interval.elapsed}) = ${w}`)
-  return w
-}
+// function getTime(epoch){
+//   let aDate = new Date(epoch*1000)
+//   aDate.setHours(aDate.getHours() + 6)
+//   return aDate.toLocaleTimeString()
+// }
 
-function getTime(epoch){
-  let aDate = new Date(epoch*1000)
-  aDate.setHours(aDate.getHours() + 6)
-  return aDate.toLocaleTimeString()
-}
+// function getInterval(totalSeconds){
+//   let output = ''
+//   if (totalSeconds < 3600) {
+//     let minutes = Math.trunc(totalSeconds / 60)
+//     let seconds = Math.floor(totalSeconds % 60)
+//     let sp = seconds > 0 ? `${seconds}s` : ''
+//     output = minutes > 0 ? `${minutes}m ${sp}` : sp
+//   }
+//   else {
+//     let hours = Math.floor(totalSeconds / 3600)
+//     let remainingSeconds = totalSeconds - (hours * 3600)
+//     let minutes = Math.trunc(remainingSeconds / 60)
+//     let seconds = Math.floor(remainingSeconds % 60)
+//     output = `${hours}h, ${minutes}m, ${seconds}s`
+//   }
+//   return output
+// }
 
-function getInterval(totalSeconds){
-  let output = ''
-  if (totalSeconds < 3600) {
-    let minutes = Math.trunc(totalSeconds / 60)
-    let seconds = Math.floor(totalSeconds % 60)
-    let sp = seconds > 0 ? `${seconds}s` : ''
-    output = minutes > 0 ? `${minutes}m ${sp}` : sp
-  }
-  else {
-    let hours = Math.floor(totalSeconds / 3600)
-    let remainingSeconds = totalSeconds - (hours * 3600)
-    let minutes = Math.trunc(remainingSeconds / 60)
-    let seconds = Math.floor(remainingSeconds % 60)
-    output = `${hours}h, ${minutes}m, ${seconds}s`
-  }
-  return output
-}
-
-function setWorkingToday(data) {
-  console.log('setWorkingToday')
-  //let canvasHeight = canvas.clientHeight
-  let tl_tentativePeriod = {active: false}
-  let tl_tentativePeriodHor = {active: false}
-  if (timelineObject.value != null){
-    tl_tentativePeriod = timelineObject.value.getTentativePeriod(pomodoroData)
-  }
-  if (timelineObjectHor.value != null){
-    tl_tentativePeriodHor= timelineObjectHor.value.getTentativePeriod(pomodoroData)
-  }
-  let canvas = document.getElementById('canvasWorkDay')
-  let canvasWidth = canvas.clientWidth //? canvas.clientWidth : 1024
-  timelineObject.value = new Timeline(data, 2300, true, false, true)
-  timelineObjectHor.value = new Timeline(data, 0, false, false, false, canvasWidth)
-  if (tl_tentativePeriod.active){
-    timelineObject.value.restoreTentativePeriod(pomodoroData ,tl_tentativePeriod.interval)
-  }
-  if (tl_tentativePeriodHor.active){
-    timelineObjectHor.value.restoreTentativePeriod(pomodoroData, tl_tentativePeriodHor.interval)
-  }
-}
-//provide('setWorkingToday', setWorkingToday)
+// function setWorkingToday(data) {
+//   console.log('setWorkingToday')
+//   //let canvasHeight = canvas.clientHeight
+//   let tl_tentativePeriod = {active: false}
+//   let tl_tentativePeriodHor = {active: false}
+//   if (timelineObject.value != null){
+//     tl_tentativePeriod = timelineObject.value.getTentativePeriod(pomodoroData)
+//   }
+//   if (timelineObjectHor.value != null){
+//     tl_tentativePeriodHor= timelineObjectHor.value.getTentativePeriod(pomodoroData)
+//   }
+//   let canvas = document.getElementById('canvasWorkDay')
+//   let canvasWidth = canvas.clientWidth //? canvas.clientWidth : 1024
+//   timelineObject.value = new Timeline(data, 2300, true, false, true)
+//   timelineObjectHor.value = new Timeline(data, 0, false, false, false, canvasWidth)
+//   if (tl_tentativePeriod.active){
+//     timelineObject.value.restoreTentativePeriod(pomodoroData ,tl_tentativePeriod.interval)
+//   }
+//   if (tl_tentativePeriodHor.active){
+//     timelineObjectHor.value.restoreTentativePeriod(pomodoroData, tl_tentativePeriodHor.interval)
+//   }
+// }
+// //provide('setWorkingToday', setWorkingToday)
 
 function isSessionActive(index){
   return pomodoroSessions.value[index] ? "red" : "primary"
@@ -908,9 +849,9 @@ async function getData() {
   }
   selectedTags.value = filters2
 
-  allProjects = await callApi('GET', 'user/projects')
-  let workingToday = await callApi("GET", 'user/spent_time/today')
-  setWorkingToday(workingToday)
+  //allProjects = await callApi('GET', 'user/projects')
+  //let workingToday = await callApi("GET", 'user/spent_time/today')
+  //setWorkingToday(workingToday)
   console.log('end getData()')
   loadComplete=true
 }
@@ -971,6 +912,17 @@ watch(
     console.log(`Updating selected tags ${newVal}, loadComplete? ${loadComplete}`)
     if (loadComplete){
       await callApi('POST', 'user/board_filters/active/', selectedTags.value)
+      if (router.currentRoute.value.fullPath.startsWith('/boards/')) {
+        boardExecuteOp.value={op: "refreshData"}
+      }
+    }
+  }
+)
+
+watch(
+  filterOutOldFinishedTasks,
+  async (newVal, oldVal) =>{
+    if (loadComplete){
       if (router.currentRoute.value.fullPath.startsWith('/boards/')) {
         boardExecuteOp.value={op: "refreshData"}
       }
@@ -1145,18 +1097,18 @@ async function addTag2SelectedTask(tag){
   selectedTask.value.idTags.push(tag.idTag)
 }
 
-async function pomodoroOnTimerClick(task) {
-  // ...
-  let workingToday2 = await callApi("GET", 'user/spent_time/today')
-  setWorkingToday(workingToday2)
-}
+// async function pomodoroOnTimerClick(task) {
+//   // ...
+//   let workingToday2 = await callApi("GET", 'user/spent_time/today')
+//   setWorkingToday(workingToday2)
+// }
 
-uiStore.$subscribe(async (mutation, state) => {
-  if (state.pomodoroSession != previousUIState.pomodoroSession){
-    let workingToday2 = await callApi("GET", 'user/spent_time/today')
-    setWorkingToday(workingToday2)
-  }
-})
+// uiStore.$subscribe(async (mutation, state) => {
+//   if (state.pomodoroSession != previousUIState.pomodoroSession){
+//     let workingToday2 = await callApi("GET", 'user/spent_time/today')
+//     setWorkingToday(workingToday2)
+//   }
+// })
 
 async function removeTagFromSelectedTask(tag){
   if (selectedTask.value==null){
@@ -1225,15 +1177,15 @@ function getCalendarActivityColor(aDate){
 }
 
 
-function setTentativeIfNotSet(){
-  if (timelineObject.value != null && timelineObject.value.tentativePeriod===-1) {
-    console.log('setting tentative period')
-    timelineObject.value.startTentativePeriod(pomodoroData, allProjects)
-  }
-  if (timelineObjectHor.value != null && timelineObjectHor.value.tentativePeriod===-1) {
-    timelineObjectHor.value.startTentativePeriod(pomodoroData, allProjects)
-  }
-}
+// function setTentativeIfNotSet(){
+//   if (timelineObject.value != null && timelineObject.value.tentativePeriod===-1) {
+//     console.log('setting tentative period')
+//     timelineObject.value.startTentativePeriod(pomodoroData, allProjects)
+//   }
+//   if (timelineObjectHor.value != null && timelineObjectHor.value.tentativePeriod===-1) {
+//     timelineObjectHor.value.startTentativePeriod(pomodoroData, allProjects)
+//   }
+// }
 
 function openTaskOrSubTask(task){
   showSubtaskNumber.value = task.idTask
@@ -1401,91 +1353,91 @@ function toRawObject(reactiveObject) {
   return rawObject;
 }
 
-function handleCanvasDblClick(event){
-  let c = document.getElementById(event.target.id)
-  if (!c){
-    c= getCanvasContainer(event.target)
-  }
-  const rect = c.getBoundingClientRect();
-  const y = event.clientY - rect.top
-  let theDay=c.id.substring(6)
-  let data= timelineObject.value.workDayData
-  let length = data.last - data.first
-  let conversion = length / data.canvasHeight
-  let value=  (conversion * y) + data.first
-  // console.log(value)
-  // console.log(timelineObject.value.workDayData)
-  // console.log(theDay)
-  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
-  // console.log(theDayData)
-  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
-    // Before the first activity
-    console.log('Before first activity')
-  }
-  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
-    //After last activity
-    console.log('After last activity')
-  }
-  else {
-    let eventIndex=0
-    for (let ev of theDayData.intervals_with_idle){
-      // console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
-      if (isWithinTimeInterval(value, ev)){
-        // console.log('Event found!')
-        // console.log(ev.taskKey +": "+ ev.task)
-        let data = toRawObject(timelineObject.value.events)
-        // console.log('no proxy data?')
-        // console.log(data)
-        window.electronAPI.shareTimeline(data)
-        window.electronAPI.openPage(`timeEntry`, `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`)
-        break
-      }
-      eventIndex++
-    }
-  }
-}
+// function handleCanvasDblClick(event){
+//   let c = document.getElementById(event.target.id)
+//   if (!c){
+//     c= getCanvasContainer(event.target)
+//   }
+//   const rect = c.getBoundingClientRect();
+//   const y = event.clientY - rect.top
+//   let theDay=c.id.substring(6)
+//   let data= timelineObject.value.workDayData
+//   let length = data.last - data.first
+//   let conversion = length / data.canvasHeight
+//   let value=  (conversion * y) + data.first
+//   // console.log(value)
+//   // console.log(timelineObject.value.workDayData)
+//   // console.log(theDay)
+//   let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+//   // console.log(theDayData)
+//   if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+//     // Before the first activity
+//     console.log('Before first activity')
+//   }
+//   else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+//     //After last activity
+//     console.log('After last activity')
+//   }
+//   else {
+//     let eventIndex=0
+//     for (let ev of theDayData.intervals_with_idle){
+//       // console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+//       if (isWithinTimeInterval(value, ev)){
+//         // console.log('Event found!')
+//         // console.log(ev.taskKey +": "+ ev.task)
+//         let data = toRawObject(timelineObject.value.events)
+//         // console.log('no proxy data?')
+//         // console.log(data)
+//         window.electronAPI.shareTimeline(data)
+//         window.electronAPI.openPage(`timeEntry`, `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`)
+//         break
+//       }
+//       eventIndex++
+//     }
+//   }
+// }
 
-function handleCanvasClick(event){
-  let c = document.getElementById(event.target.id)
-  if (!c){
-    c= getCanvasContainer(event.target)
-  }
-  const rect = c.getBoundingClientRect();
-  const y = event.clientY - rect.top
-  let theDay=c.id.substring(6)
-  let data= timelineObject.value.workDayData
-  let length = data.last - data.first
-  let conversion = length / data.canvasHeight
-  let value=  (conversion * y) + data.first
-  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
-  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
-    // Before the first activity
-    console.log('Before first activity')
-  }
-  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
-    //After last activity
-    console.log('After last activity')
-  }
-  else {
-    let eventIndex=0
-    for (let ev of theDayData.intervals){
-      console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
-      if (isWithinTimeInterval(value, ev)){
-        console.log('Event found!')
-        console.log(currentBoard.value)
-        console.log(ev.taskKey +": "+ ev.taskId)
-        if (!allTaskMap.has(ev.taskId)){
-          alert(`${ev.taskKey} (${ev.task}): Not found on the board "${headerTitle.value}"`)
-          return
-        }
-        let theTask= allTaskMap.get(ev.taskId)
-        openSearchResult(theTask)
-        break
-      }
-      eventIndex++
-    }
-  }
-}
+// function handleCanvasClick(event){
+//   let c = document.getElementById(event.target.id)
+//   if (!c){
+//     c= getCanvasContainer(event.target)
+//   }
+//   const rect = c.getBoundingClientRect();
+//   const y = event.clientY - rect.top
+//   let theDay=c.id.substring(6)
+//   let data= timelineObject.value.workDayData
+//   let length = data.last - data.first
+//   let conversion = length / data.canvasHeight
+//   let value=  (conversion * y) + data.first
+//   let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+//   if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+//     // Before the first activity
+//     console.log('Before first activity')
+//   }
+//   else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+//     //After last activity
+//     console.log('After last activity')
+//   }
+//   else {
+//     let eventIndex=0
+//     for (let ev of theDayData.intervals){
+//       console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+//       if (isWithinTimeInterval(value, ev)){
+//         console.log('Event found!')
+//         console.log(currentBoard.value)
+//         console.log(ev.taskKey +": "+ ev.taskId)
+//         if (!allTaskMap.has(ev.taskId)){
+//           alert(`${ev.taskKey} (${ev.task}): Not found on the board "${headerTitle.value}"`)
+//           return
+//         }
+//         let theTask= allTaskMap.get(ev.taskId)
+//         openSearchResult(theTask)
+//         break
+//       }
+//       eventIndex++
+//     }
+//   }
+// }
 
 window.electronAPI.onTaskUpdate(async(idTask) => {
   console.log(`got signal of an updated task: ${idTask}`)
@@ -1506,22 +1458,22 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'pomodoroTaskStart':
-      console.log('pomodoroTaskStart')
+      //console.log('pomodoroTaskStart')
       //pomodoroSessions.value=[false, false, false, false, false, false, false, false]
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
-      setTentativeIfNotSet()
+      //setTentativeIfNotSet()
       //pomodoroSessions.value[pomodoroData.session] = true;
       break
     case 'updateTimer':
       //console.log('pomodoro tick')
       remainingTime.value = pomodoroMsg.value.remainingTime
       setPomodoroDataValues(pomodoroMsg.value.pomodoroData)
-      if (timelineObject.value != null && timelineObjectHor.value != null) {
-        timelineObject.value.updateTentativePeriod()
-        timelineObjectHor.value.updateTentativePeriod()
-        triggerRef(timelineObject)
-        triggerRef(timelineObjectHor)
-      }
+      // if (timelineObject.value != null && timelineObjectHor.value != null) {
+      //   timelineObject.value.updateTentativePeriod()
+      //   timelineObjectHor.value.updateTentativePeriod()
+      //   triggerRef(timelineObject)
+      //   triggerRef(timelineObjectHor)
+      // }
       break;
     case 'pomodoroSetSession':
       pomodoroSessions.value[pomodoroData.session] = false
@@ -1529,15 +1481,15 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
       pomodoroData.session = pomodoroMsg.value
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
       //console.log('setup tentative period')
-      if(timelineObject.value!=null){
-        timelineObject.value.tentativePeriod=-1
-      }
-      if(timelineObjectHor.value!=null){
-      timelineObjectHor.value.tentativePeriod=-1
-      }
-      let workingToday2 = await callApi("GET", 'user/spent_time/today')
-      setTentativeIfNotSet()
-      setWorkingToday(workingToday2)
+      // if(timelineObject.value!=null){
+      //   timelineObject.value.tentativePeriod=-1
+      // }
+      // if(timelineObjectHor.value!=null){
+      // timelineObjectHor.value.tentativePeriod=-1
+      // }
+      // let workingToday2 = await callApi("GET", 'user/spent_time/today')
+      // //setTentativeIfNotSet()
+      // setWorkingToday(workingToday2)
       break
     case 'pomodoroEnd':
       document.getElementById('boxRing').play()
@@ -1545,20 +1497,32 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
       //pomodoroSessions.value[pomodoroMsg.value] = true;
       pomodoroData.session = pomodoroMsg.value
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
-      if(timelineObject.value!=null){
-        timelineObject.value.tentativePeriod=-1
-      }
-      if(timelineObjectHor.value!=null){
-        timelineObjectHor.value.tentativePeriod=-1
-      }
-      let workingToday = await callApi("GET", 'user/spent_time/today')
-      setWorkingToday(workingToday)
+      // if(timelineObject.value!=null){
+      //   timelineObject.value.tentativePeriod=-1
+      // }
+      // if(timelineObjectHor.value!=null){
+      //   timelineObjectHor.value.tentativePeriod=-1
+      // }
+      // let workingToday = await callApi("GET", 'user/spent_time/today')
+      // setWorkingToday(workingToday)
+      break;
+    case 'pomodoroTaskChanged':
+      pomodoroData.session = pomodoroMsg.value
+      setPomodoroDataValues(pomodoroMsg.pomodoroData)
+      // if(timelineObject.value!=null){
+      //   timelineObject.value.tentativePeriod=-1
+      // }
+      // if(timelineObjectHor.value!=null){
+      //   timelineObjectHor.value.tentativePeriod=-1
+      // }
+      // let workingToday3 = await callApi("GET", 'user/spent_time/today')
+      // setWorkingToday(workingToday3)
       break;
   }
 
 })
 
 
-provide('clickPomodoroTimer', pomodoroOnTimerClick)
+//provide('clickPomodoroTimer', pomodoroOnTimerClick)
 
 </script>
