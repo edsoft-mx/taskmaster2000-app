@@ -24,12 +24,12 @@
   </body>
 
 <script>
-  function scrollToTask(idTask){
+  function scrollToTask(idTask, forceParent=false){
     let extraScroll=-40
     let targetElement = `super-task-${idTask}`
     let altTargetElement = `task-card-${idTask}`
     let el=document.getElementById(targetElement)
-    if (el==null) {
+    if (el==null || forceParent) {
       el=document.getElementById(altTargetElement)
       extraScroll=-60
     }
@@ -39,13 +39,13 @@
     window.scrollBy(0, extraScroll, "smooth")
   }
 
-  function scrollToEpic(idEpic){
+  function scrollToEpic(idEpic, forceParent=false){
     console.log(`scrollToEpic(${idEpic})`)
     let extraScroll=-40
     let targetElement = `epic-container-${idEpic}`
     let altTargetElement = `epic-card-${idEpic}`
     let el=document.getElementById(targetElement)
-    if (el==null) {
+    if (el==null || forceParent) {
       el=document.getElementById(altTargetElement)
       extraScroll=-60
     }

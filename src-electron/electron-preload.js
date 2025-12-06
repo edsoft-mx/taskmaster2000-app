@@ -46,10 +46,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLocalNote: (notePath)=>ipcRenderer.invoke('function:getLocalNote', notePath),
   onRefresh: (callback) => ipcRenderer.on('updateBoard', () => callback()),
   onTaskUpdate: (callback) => ipcRenderer.on('on-task-update', (_event, idTask, idProject, op) => callback(idTask, idProject, op)),
+  onEpicUpdate: (callback) => ipcRenderer.on('on-epic-update', (_event, idEpic, idProject, op) => callback(idEpic, idProject, op)),
   onRefreshTimeline: (callback) => ipcRenderer.on('updateTimeline', () => callback()),
 
   pomodoroTimerClick: (task) => ipcRenderer.send('pomodoro-timer-click', task),
-  pomodoroMenuClick: (task) => ipcRenderer.send('pomodoro-menu-click'),
+  pomodoroMenuClick: (tasks) => ipcRenderer.send('pomodoro-menu-click', tasks),
   pomodoroTick: (callback) => ipcRenderer.on('pomodoro-tick', (_event, pomodoroMsg) => callback(pomodoroMsg)),
   //onGoToHome: (callback) => ipcRenderer.on('goToHome', () => callback()),
   //onGoToAbout: (callback) => ipcRenderer.on('goToAbout', () => callback())

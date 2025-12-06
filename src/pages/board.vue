@@ -163,7 +163,6 @@ async function getData(){
     //updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
   }
 
-
   let activityMap = new Map()
   console.log('new activityMap')
   for (let task of result.tasks){
@@ -415,7 +414,6 @@ async function insertTask(idTask){
     return;
   }
   updatingTaskNumber = idTask
-
   console.log('Insert Task')
   let result = true
   let activityMap = daysWithActivity.value
@@ -484,6 +482,10 @@ async function updateTask(idTask){
     let ptIdx = boardData.tasks.findIndex(t => t.idTask == task.parentTask.idTask)
     boardData.tasks[ptIdx].subTasks = boardData.tasks[ptIdx].subTasks.slice()
     console.log(`Updating task @ index ${ptIdx}`)
+    if (maximizedTaskRef.value != null && task.parentTask.idTask == maximizedTaskRef.value.idTask){
+      maximizedTaskRef.value = task.parentTask
+      await nextTick()
+    }
     await nextTick()
   }
   else if (task.parentTask==null && task.idEpic==null){
@@ -529,6 +531,60 @@ async function updateTask(idTask){
   }
   updatingTaskNumber = 0
   console.log('finish updateTask.update')
+}
+
+async function removeTask(idTask){
+  if (!idTask){
+    return
+  }
+  let task = BoardTask.allTasks.find((t)=> t.idTask === idTask)
+  console.log(task)
+  if (task==null){
+    return
+  }
+  if (task.parentTask!=null && task.parentTask.idEpic == null){
+    console.log('This is a subtask, parent is a root task.')
+    let ptIdx = boardData.tasks.findIndex(t => t.idTask == task.parentTask.idTask)
+    let tIdx = boardData.tasks[ptIdx].subTasks.findIndex(t => t.idTask == task.idTask)
+    boardData.tasks[ptIdx].subTasks.splice(tIdx, 1)
+    console.log(`Updating task @ index ${ptIdx}`)
+    await nextTick()
+  }
+  else if (task.parentTask==null && task.idEpic==null){
+    console.log('This is a root task')
+    let tIdx = boardData.tasks.findIndex(t => t.idTask == task.idTask)
+    boardData.tasks.splice(tIdx, 1)
+    await nextTick()
+  }
+  else if (task.parentTask==null && task.idEpic!=null && !task.isRoot){
+    console.log('This is an Epic task, searching parent epic...')
+    let epic = boardData.epics.find(e=> e.idEpic === task.idEpic)
+    console.log('found epic')
+    console.log(epic)
+    let tIdx = epic.subTasks.findIndex(t => t.idTask == task.idTask)
+    epic.subTasks.splice(tIdx, 1)
+    await nextTick()
+  }
+  else if (task.parentTask!=null && task.parentTask.idEpic!=null && !task.isRoot) {
+    console.log('This is a subtask, which parent task has an epic')
+    let epic = boardData.epics.find(e=> e.idEpic === task.parentTask.idEpic)
+    console.log('found epic', epic)
+    let ptask = epic.subTasks.find(t=> t.idTask == task.parentTask.idTask)
+    console.log('found parent task', ptask)
+    let tIdx = ptask.subTasks.findIndex(t => t.idTask == task.idTask)
+    ptask.subTasks.splice(tIdx, 1)
+  }
+  else {
+    console.log("don't know which kind of task is this")
+  }
+  if (task.idTask === selectedTask.value?.idTask){
+    selectedTask.value=null
+    globalSelectedTask.value = null
+    await nextTick()
+  }
+  let taskIdx = BoardTask.allTasks.findIndex((t)=> t.idTask === idTask)
+  BoardTask.allTasks.splice(taskIdx, 1)
+  console.log('finish updateTask.delete')
 }
 
 function viewSubTask(subTask){
@@ -677,11 +733,24 @@ async function toggleTask(task){
   }
 }
 
+async function goToParent(task){
+    setTimeout(`scrollToTask(${task.idTask}, true)`, 500)
+    showTask(task)
+}
+
+async function goToSuperTask(task){
+  let data = {expanded: task.expanded, idBoard: props.idBoard}
+  if (task.expanded){
+    setTimeout(`scrollToTask(${task.idTask})`, 500)
+  }
+  showTask(task)
+}
+
 async function toggleEpic(epic){
   let idx = boardData.epics.indexOf(epic)
   epic.expanded = !epic.expanded
   //boardData.epics[idx].expanded = !boardData.epics[epic].expanded
-  let data = {expanded: epic.expanded, idBoard: props.idBoard}
+  let data = {expanded: epic.expanded, idBoard: props.idBoard, idProject: epic.idProject}
   await callApi("POST", `user/epics/${epic.idEpic}`, data)
   if (epic.expanded){
     //if (task.hasSubTasks && task.expanded) {
@@ -690,26 +759,15 @@ async function toggleEpic(epic){
   }
 }
 
-// async function toggleSuperTaskInfo(task){
-//   if (!task.showDetail){
-//     task.showDetail= true
-//   }
-//   else {
-//     task.showDetail = false
-//   }
-//   showTask(task)
-// }
+async function goToEpicDetail(epic){
+  let idx = boardData.epics.indexOf(epic)
+  setTimeout(`scrollToEpic(${epic.idEpic})`, 500)
+}
 
-// function superTaskDetail(task){
-//   let result = ''
-//   if (task.description){
-//     result += `## Description:\n${task.description}\n`
-//   }
-//   if (task.notes){
-//     result += `## Notes:\n${task.notes}\n`
-//   }
-//   return result
-// }
+async function goToEpicParent(epic){
+  let idx = boardData.epics.indexOf(epic)
+  setTimeout(`scrollToEpic(${epic.idEpic}, true)`, 500)
+}
 
 window.electronAPI.onRefresh(async() => {
   let scroll = window.scrollY
@@ -736,11 +794,47 @@ window.electronAPI.onTaskUpdate(async(idTask, idProject, op) => {
     console.log('Not implemented yet')
   }
   else if (op==='MOVE'){
-    console.log('Move operation not implemented yet, applying an update...')
-    await updateTask(idTask)
+    console.log('Moving...')
+    await removeTask(idTask)
+    await insertTask(idTask)
   }
   else {
     await updateTask(idTask)
+  }
+})
+
+window.electronAPI.onEpicUpdate(async(idEpic, idProject, op) => {
+  console.log(`got signal of an updated/inserted epic: ${idEpic}`)
+  if (idProject > 0) {
+    let pIdx = boardData.projects.findIndex(p => p.idProject === idProject)
+    if (pIdx<0){
+      console.log(`Project ${idProject} not found on this board`)
+      return
+    }
+  }
+  let currentValues = await callApi('GET', `user/boards/${props.idBoard}/epics/${idEpic}`)
+  currentValues.justAdded = true
+  if (op==='INSERT'){
+    console.log('Epic inserted: Not implemented yet')
+    currentValues.expanded = true
+    let epicObject= new BoardEpic(currentValues)
+    let epicObjects = boardData.epics
+    epicObjects.push(epicObject)
+    boardData.epic2domMap.set(currentValues.idEpic, `epic-card-${currentValues.idEpic}`)
+    boardData.epics = epicObjects
+  }
+  else if (op==='DELETE'){
+    console.log('Not implemented yet')
+  }
+  else {
+    console.log('Epic updated: Not implemented yet')
+    let pIdx = boardData.epics.findIndex(e => e.idEpic === idEpic)
+    let epic = boardData.epics[pIdx]
+    epic.description = currentValues.description
+    epic.epic = currentValues.epic
+    epic.priority = currentValues.priority
+    epic.state= currentValues.state
+    boardData.epics[pIdx] = epic;
   }
 })
 
@@ -948,19 +1042,23 @@ const maxiSubTask = computed(() => {
   <div id="mainContainer" class="boardMainContainer" >
     <TMKanban idPrefix="main" :key="updater.get('root')" ref="rootKanban" :id-board="props.idBoard"
               :epics="boardData.epics" :tasks="boardData.tasks" :states="boardData.states"
-              @toggle-detail="toggleTask" @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
+              @go-to-detail="goToSuperTask" @toggle-detail="toggleTask" @go-to-detail-epic="goToEpicDetail"
+              @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
     <div v-for="epic in boardData.epics" :key="epic.uiKey" >
-      <div :style="styleForSuperTask(epic)" v-if="epic.expanded">
+      <div  v-if="epic.expanded">
         <TMEpicContainer :states="boardData.states" :epic="epic" :id="`epic-container-${epic.idEpic}`"
                          :tasks="epic.subTasks" :id-board="props.idBoard"
                          @toggle-detail="toggleTask"
+                         @go-to-parent-epic="goToEpicParent" @go-to-detail="goToSuperTask"
+                         @go-to-parent="goToParent"
                          @toggle-epic="toggleEpic" @select="showTask" @maximize="maximizeTask"/>
       </div>
     </div>
     <div v-for="task in boardData.tasks" :key="task.uiKeyContainer" >
-      <div :style="styleForSuperTask(task)" v-if="task.expanded && task.hasSubTasks">
+      <div  v-if="task.expanded && task.hasSubTasks">
         <TMTaskContainer :states="boardData.states" :task="task" :tasks="task.subTasks"
                          :id="`super-task-${task.idTask}`" :id-board="props.idBoard"
+                         @go-to-parent="goToParent"
                          @toggle-detail="toggleTask" @select="showTask" @maximize="maximizeTask" />
       </div>
     </div>
@@ -995,6 +1093,7 @@ const maxiSubTask = computed(() => {
         <div v-if="maximizedTaskRef.idTask">
           <h4 v-if="maximizedTaskRef.hasSubTasks" >SubTasks</h4>
           <TMKanban id="kanbanTask" :key="maximizedTaskRef.uiKey"
+                    :idPrefix="`task_${maximizedTaskRef.idTask}`" :id-board="props.idBoard"
                     v-if="maximizedTaskRef.hasSubTasks || maximizedTaskRef.taskType === 'epic'"
                     :tasks="maximizedTaskRef.subTasks" :states="boardData.states"
                     @toggle-detail="toggleTask"  @select="showTask" @maximize="maximizeTask"/>

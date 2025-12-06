@@ -1,6 +1,6 @@
 <script setup>
 import TMKanban from "components/tmKanban.vue";
-import {ref, defineProps} from 'vue'
+import {ref, defineProps, inject} from 'vue'
 
 defineOptions({
   name: 'TMTaskContainer',
@@ -26,7 +26,8 @@ const props = defineProps({
   }
 })
 
-const events = defineEmits(['maximize', 'toggle-detail', 'select'])
+const events = defineEmits(['maximize', 'toggleDetail', 'select', 'goToParent'])
+const globalSelectedTask = inject('globalSelectedTask')
 
 let showDetails = ref(false)
 
@@ -50,11 +51,23 @@ function superTaskDetail(){
   return result
 }
 
+function getClasses(){
+  let result = 'superTask'
+  if (globalSelectedTask.value!=null && globalSelectedTask.value.idTask===props.task.idTask){
+    result += ' selectedTask'
+  }
+  return result
+}
+
 </script>
 
 <template>
-<div class="superTask" >
+<div :class="getClasses()" :style="`border: solid 2px ${task.color}`">
   <img :src="`${task.taskType}.png`" style="width:16px; height: 16px; vertical-align: middle;"/> &nbsp;
+  <button @click="$emit('go-to-parent', task)" title="Go to Parent Task"
+          class="buttonTaskAction2" >
+    <span class="material-icons-outlined material-icons" >zoom_out</span>
+  </button>
   <button @click="$emit('toggle-detail', task)" :title="task.expanded ? 'Hide Subtasks':'Show Subtasks'"
           class="buttonTaskAction2" >
     <span class="material-icons-outlined material-icons" v-if="!task.expanded">expand_more</span>
@@ -66,7 +79,6 @@ function superTaskDetail(){
   <button @click="$emit('select', task);toggleSuperTaskInfo()" title="Show description" class="buttonTaskAction2" >
     <span class="material-icons-outlined material-icons">info</span>
   </button>
-  &nbsp;
   <button @click="editTask" type="button" title="Edit task" class="buttonTaskAction2" >
     <span class="material-icons-outlined material-icons">edit</span>
   </button>

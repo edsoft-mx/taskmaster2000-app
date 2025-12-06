@@ -111,6 +111,9 @@ class BoardTask {
     if (parentTaskId==null) {
       if (this.idEpic){
         let epic= epicMap.get(this.idEpic)
+        if (epic==null){
+          console.log(`Could not find epic ${this.idEpic} for task ${this.idTask}`)
+        }
         epic.subTasks.push(this)
         this.epic= epic
       }

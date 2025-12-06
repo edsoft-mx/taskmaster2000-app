@@ -55,6 +55,8 @@ const events = defineEmits([
   // 'editTask',
   // 'timerClick',
   'toggleDetail',
+  'goToDetail',
+  'goToDetailEpic',
   'toggleEpic',
   // 'openExternal',
   'dragStarted',
@@ -220,7 +222,8 @@ async function dropOverStateColumn(event){
     else if (data.kind === 'epic'){
       dropResult = await callApi("POST", `user/boards/${data.board}/epics/${data.id}/dragged_to`,
         {target: dropTarget.id, idBoard: data.board})
-      location.reload()
+      // location.reload()
+      return
     }
     console.log(dropResult)
     uiStore.setNewState4Task(data.id, dropResult.task.state)
@@ -475,6 +478,7 @@ function showLess(state){
         <div v-for="epic in epicsIndexed.get(state.state)" :key="epic.uiKey">
           <TMEpic :id="`epic-card-${epic.idEpic}`" :epic="epic"
                   v-show="epic.displayIndex < stateDisplayLimit.get(state.state) || epic.ghost"
+                  @go-to-detail-epic="$emit('go-to-detail-epic', epic)"
                   @toggle-epic="$emit('toggle-epic', epic)" @select="$emit('select', epic)"
                   @dragstart="dragEpic($event, epic)"
                   @dblclick="$emit('maximize', epic)"
@@ -485,6 +489,7 @@ function showLess(state){
                   v-show="task.displayIndex < stateDisplayLimit.get(state.state) || task.ghost || task.justAdded"
                   @dblclick="$emit('maximize', task)"
                   @toggle-detail="$emit('toggle-detail', task)"
+                  @go-to-detail="$emit('go-to-detail', task)"
                   @select="$emit('select', task)"
                   @dragstart="dragTask($event, task, parent)"
           />
