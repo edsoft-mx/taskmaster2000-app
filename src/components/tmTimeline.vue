@@ -17,6 +17,9 @@ import {
 } from 'vue'
 import {callApi, store_configuration, Timeline} from 'src/common'
 
+import {
+  BoardTask,
+} from 'src/commonObjects'
 
 const props = defineProps({
   startDate: {
@@ -45,25 +48,17 @@ const props = defineProps({
   }
 })
 
-// let pomodoroData = reactive({
-//   timerActive: false,  // is pomodoro timer on/off
-//   session: 0, // Pomodoro Session number 1,3,5,7 working sessions, 2,4,6,8 break sessions
-//   start: 0, // session start timestamp
-//   epoch: 0, // timestamp (on future) when the current session ends
-//   remaining: 0, // for paused sessions, how many remaining seconds the current session has
-//   task: {idTask: null, title: "Break"} , // current task, break sessions should have a falsy idTask
-// //  previousTask: {idTask: null, title: "Break"},
-// //  timerHandler: null, // settimeout handler
-//   fullSessionDuration: 1500,
-//   notifiedEndOfBreak: false,
-//   breakExpiredATimeAgo: false,
-// })
+const events = defineEmits([
+  'select',
+])
+
 
 let canvasRefs = useTemplateRef('canvases')
 
 let inited=false
 let counterCurrentTimeIntoView = 0
 let mountedFlag = false
+let mountedDblClickFlag = false
 let timelineObject = ref(null)
 //let allProjects = null
 
@@ -85,6 +80,54 @@ async function getData(dataDateRange=null) {
   }
   console.log('Done getting weekly data')
   inited=true
+}
+
+function getCanvasContainer(element) {
+  // Check if the element is an SVG element.
+  if (element instanceof SVGElement) {
+    // Traverse up the DOM tree until we find the canvas element.
+    let currentElement = element;
+    while (currentElement) {
+      if (currentElement.tagName === 'svg') {
+        return currentElement; // Found the canvas container.
+      }
+      currentElement = currentElement.parentElement;
+    }
+  }
+  return null; // Canvas container not found.
+}
+
+function isWithinTimeInterval(instant, interval) {
+  return Number(interval.start) <= instant && instant <= Number(interval.end)
+}
+
+function toRawObject(reactiveObject) {
+  if (!reactiveObject) {
+    return reactiveObject; // Handle null or undefined inputs
+  }
+
+  if (typeof reactiveObject !== 'object') {
+    return reactiveObject; // Handle primitive types
+  }
+
+  if (Array.isArray(reactiveObject)) {
+    return reactiveObject.map(item => toRawObject(item));
+  }
+
+  const rawObject = {};
+  for (const key in reactiveObject) {
+    if (Object.prototype.hasOwnProperty.call(reactiveObject, key)) {
+      // Vue 3: use toRaw()
+      if(typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null && '__v_raw' in reactiveObject[key]){
+        rawObject[key] = Vue.toRaw(reactiveObject[key]);
+      } else if (typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null) {
+        rawObject[key] = toRawObject(reactiveObject[key]);
+      } else {
+        rawObject[key] = reactiveObject[key];
+      }
+    }
+  }
+  return rawObject;
 }
 
 function handleCanvasClick(event){
@@ -129,8 +172,60 @@ function handleCanvasClick(event){
   }
 }
 
+function handleCanvasSingleClick(event){
+  let c = document.getElementById(event.target.id)
+  if (!c){
+    c= getCanvasContainer(event.target)
+  }
+  const rect = c.getBoundingClientRect();
+  const y = event.clientY - rect.top
+  let theDay=c.id.substring(6)
+  let data= timelineObject.value.workDayData
+  let length = data.last - data.first
+  let conversion = length / data.canvasHeight
+  let value=  (conversion * y) + data.first
+  console.log(value)
+  console.log(timelineObject.value.workDayData)
+  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+    // Before the first activity
+    console.log('Before first activity')
+  }
+  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+    //After last activity
+    console.log('After last activity')
+  }
+  else {
+    let eventIndex=0
+    for (let ev of theDayData.intervals_with_idle){
+      console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+      if (isWithinTimeInterval(value, ev)){
+        console.log('Event found!')
+        console.log(ev.taskKey +": "+ ev.task)
+        let task = BoardTask.allTasks.find(t => t.idTask == ev.taskId)
+        console.log(task)
+        events('select', task)
+        break
+      }
+      eventIndex++
+    }
+  }
+}
+
+onUnmounted(async ()=>{
+  if (canvasRefs.value){
+    console.log('removing dblclick event handler to canvas')
+    //console.log(canvasRefs.value)
+    for (let c of canvasRefs.value){
+      c.removeEventListener('dblclick', handleCanvasClick)
+      c.removeEventListener('click', handleCanvasSingleClick)
+    }
+  }
+})
+
 onMounted(async ()=>{
   mountedFlag = false
+  console.log('tmTimeline.mounted')
   console.log('timeline component mounted')
   console.log(props.startDate)
   console.log(props.endDate)
@@ -140,23 +235,32 @@ onMounted(async ()=>{
     //console.log(config)
     if (!config){
       mountedFlag= true
+      console.log('tmTimeline.mounted: there was no configuration')
       return
     }
     store_configuration(config)
   }
+
   if (!props.startDate || !props.endDate){
-    console.log('No start date range')
+    console.log('tmTimeline.mounted: No start date range')
     mountedFlag= true
     return
   }
+  console.log('tmTimeline.mounted: getting data...')
   await getData()
-  mountedFlag= true
-  if (canvasRefs.value){
+  if (canvasRefs.value && !mountedDblClickFlag){
+    console.log('adding dblclick event handler to canvas')
     //console.log(canvasRefs.value)
+    mountedDblClickFlag = true
     for (let c of canvasRefs.value){
       c.addEventListener('dblclick', handleCanvasClick)
+      c.addEventListener('click', handleCanvasSingleClick)
     }
   }
+  else {
+    console.log('No dblclick event handler to canvas')
+  }
+  mountedFlag= true
 })
 
 watch(props, async ()=>{
@@ -166,6 +270,22 @@ watch(props, async ()=>{
     return
   }
   await getData()
+  if (canvasRefs.value && !mountedDblClickFlag){
+    console.log('adding dblclick event handler to canvas')
+    //console.log(canvasRefs.value)
+    mountedDblClickFlag = true
+    for (let c of canvasRefs.value){
+      c.addEventListener('dblclick', handleCanvasClick)
+      c.addEventListener('click', handleCanvasSingleClick)
+    }
+  }
+  else {
+    console.log('No dblclick event handler to canvas')
+  }
+})
+
+window.electronAPI.onRefreshTimeline(async() => {
+  await getData();
 })
 
 // function setPomodoroDataValues(data){
@@ -190,11 +310,23 @@ watch(props, async ()=>{
 function checkCurrentTimeIntoView(){
   let idMain = `${props.uiId}_mainDiv`
   let elMain = document.getElementById(idMain)
+  if(elMain==null){
+    console.log(`can't find ${props.uiId}_mainDiv`)
+    return
+  }
   let mainSize = elMain.getBoundingClientRect();
 
   // lets search for a parent component with a smaller height (which surely will have a scroll bar)
   let scrollingParent = elMain.parentElement
+  if (scrollingParent==null){
+    console.log('no (scrolling) parent')
+    return;
+  }
   let scrollingSize = scrollingParent.getBoundingClientRect();
+  if (scrollingSize==null){
+    return
+  }
+  //console.log('checkpoint1')
   while (scrollingSize.height >= mainSize.height){
     scrollingParent = scrollingParent.parentElement
     scrollingSize = scrollingParent.getBoundingClientRect();
@@ -258,43 +390,12 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   }
 })
 
-// window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
-//   // console.log('Get message from pomodoro:')
-//   // console.log(pomodoroMsg)
-//   switch (pomodoroMsg.type) {
-//     case 'pomodoroTaskStart':
-//       console.log('pomodoroTaskStart')
-//       //pomodoroSessions.value=[false, false, false, false, false, false, false, false]
-//       setPomodoroDataValues(pomodoroMsg.pomodoroData)
-//       setTentativeIfNotSet()
-//       //pomodoroSessions.value[pomodoroData.session] = true;
-//       break
-//     case 'updateTimer':
-//       //console.log('pomodoro tick')
-//       setPomodoroDataValues(pomodoroMsg.value.pomodoroData)
-//       if (timelineObject.value != null) {
-//         timelineObject.value.updateTentativePeriod()
-//         triggerRef(timelineObject)
-//       }
-//       break;
-//     // case 'pomodoroSetSession':
-//     //   pomodoroData.session = pomodoroMsg.value
-//     //   setPomodoroDataValues(pomodoroMsg.pomodoroData)
-//     //   //console.log('setup tentative period')
-//     //   if(timelineObject.value!=null){
-//     //     timelineObject.value.tentativePeriod=-1
-//     //   }
-//     //   await getData()
-//     //   setTentativeIfNotSet()
-//     //   break
-
-// })
 
 </script>
 
 <template>
   <div class="flex-container" :id="`${props.uiId}_mainDiv`">
-    <div class="flex-items" style="max-width: 70px">
+    <div class="flex-items" style="max-width: 45px">
       <div>Time</div>
       <div class="canvasContainer">
         <svg class="canvas" id="canvasTimeline">

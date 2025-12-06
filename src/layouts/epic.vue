@@ -3,7 +3,7 @@ defineOptions({
   name: 'tm-epic'
 });
 import { ref, reactive, defineProps, watch, inject, computed, onMounted } from 'vue'
-import { callApi } from 'src/common'
+import {callApi, store_configuration} from 'src/common'
 
 const props = defineProps({
   idBoard: Number,
@@ -206,6 +206,16 @@ function editTask(subtask, parentTask){
 }
 
 onMounted(async ()=> {
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
   await getData()
 })
 

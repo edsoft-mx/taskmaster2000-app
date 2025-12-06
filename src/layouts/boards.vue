@@ -3,8 +3,8 @@ defineOptions({
   name: 'tm-boards'
 });
 
-import { ref, reactive } from 'vue'
-import { callApi } from 'src/common'
+import {ref, reactive, onMounted} from 'vue'
+import {callApi, store_configuration} from 'src/common'
 
 const columns = [
   {
@@ -206,7 +206,19 @@ async function submitForm() {
   }
 }
 
-getData();
+onMounted(async ()=> {
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
+  await getData()
+})
 
 </script>
 

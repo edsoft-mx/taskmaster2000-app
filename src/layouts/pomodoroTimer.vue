@@ -1,6 +1,7 @@
 <script setup>
 import {ref, reactive, watch, triggerRef} from 'vue'
 import {callApi} from "src/common";
+import TMTimeLine from "components/tmTimeline.vue";
 
 let pomodoroData = reactive({
   timerActive: false,  // is pomodoro timer on/off
@@ -15,11 +16,28 @@ let pomodoroData = reactive({
   notifiedEndOfBreak: false,
   breakExpiredATimeAgo: false,
 })
+let today = ref("")
 const remainingTime = ref("00:25")
 const pomodoroSessions = ref([true, false, false, false, false, false, false, false, false])
+let flagFlashPomodoro = false
 
 async function pomodoroMenuClick(task) {
-  await window.electronAPI.pomodoroMenuClick()
+  let recentTasks = await callApi('GET', 'user/tasks/recent/')
+  let rt = []
+  for (let task of recentTasks){
+    rt.push({
+      label: `${task.key}: ${task.title} (${task.projectName})`,
+      value: {
+        idTask: task.idTask,
+        idProject: task.idProject,
+        description: `${task.key}: ${task.title} (${task.projectName})`,
+        title: task.title,
+        key: task.key,
+        color: task.color,
+      },
+    })
+  }
+  await window.electronAPI.pomodoroMenuClick(rt)
 }
 
 function isSessionActive(index){
@@ -39,8 +57,8 @@ function setPomodoroDataValues(data){
 }
 
 window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
-  console.log('Get message from pomodoro:')
-  console.log(pomodoroMsg)
+  // console.log('Get message from pomodoro:')
+  // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'pomodoroTaskStart':
       console.log('pomodoroTaskStart')
@@ -87,14 +105,23 @@ function removeClassFromElement(element, aClass){
 
 function init(){
   window.document.title = 'Pomodoro Timer'
+  const todayD = new Date();
+  console.log (`today is ${todayD.getFullYear()}/${todayD.getMonth()}/${todayD.getDate()}`);
+  today.value = `${todayD.getFullYear()}/${todayD.getMonth()+1}/${todayD.getDate()}`;
 }
 
 watch(
   pomodoroData,
   async (newVal, oldVal) =>{
-    console.log("pomodoroData changed")
-    console.log(newVal)
+    //console.log("pomodoroData changed")
+    //console.log(newVal)
     if (newVal.breakExpiredATimeAgo) {
+      flagFlashPomodoro = !flagFlashPomodoro
+    }
+    else {
+      flagFlashPomodoro = false
+    }
+    if (flagFlashPomodoro) {
       removeClassFromElement('mainHeader', "bg-primary")
       addClassToElement('mainHeader', "noPomodoro")
       removeClassFromElement('mainFooter', "bg-primary")
@@ -114,44 +141,73 @@ init()
 </script>
 
 <template>
-  <div class="bg-primary flex-container" id="mainHeader">
-
-  <div class="flex-items" style="display: flex;  align-items: center;  justify-content: center; padding: 0; margin: 0;">
-    <div class="taskText">
-      {{ pomodoroData.task?.key }}{{ pomodoroData.task?" - ":"" }}{{ pomodoroData.task?.title }}
+ <div class="MainContainer">
+   <div class="timelineContainer">
+     <div style="max-width:550px; padding:16px; justify-content: right;">
+       <TMTimeLine :include-breaks="false" :only-billed="false" uiId="tmMainPMW"
+                   :end-date="today" :start-date="today" :pomodoroData="pomodoroData" />
+     </div>
+   </div>
+    <div class="bg-primary flex-container" id="mainHeader">
+      <div class="flex-items" style="display: flex;  align-items: center;  justify-content: center; padding: 0; margin: 0;">
+        <div class="taskText">
+          {{ pomodoroData.task?.key }}{{ pomodoroData.task?" - ":"" }}{{ pomodoroData.task?.title }}
+        </div>
+      </div>
+      <div style="margin-left: 8px;" class="flex-items statusBar">
+        <q-avatar size="32px" :color="isSessionActive(1)">
+          <img src="to-work-in-an-office.png" title="Session 1">
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
+        <q-avatar size="32px" :color="isSessionActive(3)">
+          <img src="to-work-in-an-office.png" title="Session 2">
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
+        <q-avatar size="32px" :color="isSessionActive(5)">
+          <img src="to-work-in-an-office.png" title="Session 3">
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
+        <q-avatar size="32px" :color="isSessionActive(7)">
+          <img src="to-work-in-an-office.png" title="Session 4">
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
+      </div>
+      <div class="flex-items">
+        <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime" />
+      </div>
     </div>
 
-  </div>
-  <div style="margin-left: 8px;" class="flex-items">
-    <q-avatar size="32px" :color="isSessionActive(1)">
-      <img src="to-work-in-an-office.png" title="Session 1">
-    </q-avatar>
-    <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
-    <q-avatar size="32px" :color="isSessionActive(3)">
-      <img src="to-work-in-an-office.png" title="Session 2">
-    </q-avatar>
-    <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
-    <q-avatar size="32px" :color="isSessionActive(5)">
-      <img src="to-work-in-an-office.png" title="Session 3">
-    </q-avatar>
-    <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
-    <q-avatar size="32px" :color="isSessionActive(7)">
-      <img src="to-work-in-an-office.png" title="Session 4">
-    </q-avatar>
-    <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
-
-  </div>
-  <div class="flex-items">
-    <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime" />
-
-  </div>
-  </div>
+ </div>
 </template>
 
 <style>
 body {
   overflow-y: hidden;
 }
+
+.MainContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#mainHeader {
+  flex-shrink: 0;
+  height: 50px;
+}
+
+.timelineContainer {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-self: flex-end;
+}
+
+.statusBar {
+  flex-grow: 0;
+}
+
 </style>
 
 <style scoped>

@@ -1,10 +1,20 @@
 import { app, BrowserWindow, session, ipcMain, protocol, net, Notification, Menu, shell } from 'electron'
+const log = require('electron-log');
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import url from "url";
+//import url from "url";
 //import {pomodoroOnTimerClick, setAppConfig, pomodoroRehydrate,  addPomodoroTickSubscriber, showPomodoroMenu, setMessagerObject, setCurrentUser} from './pomodoro';
 import {setPomodoroWatcher, addPomodoroTickSubscriber, showPomodoroMenu, pomodoroOnTimerClick} from './pomodoro';
+
+log.transports.file.level = 'info';
+log.transports.file.maxSize = 1024 * 1024 * 5; // 5MB
+log.transports.console.level = 'debug';
+log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
+console.log = log.log;
+console.error = log.error;
+console.warn = log.warn;
+
 let PROTO_PATH = path.resolve(__dirname, '..', 'taskmaster2000.proto');
 console.log('PROTO_PATH', PROTO_PATH);
 // needed in case process is undefined under Linux
@@ -118,9 +128,6 @@ function getMenu(){
 }
 
 async function createMainWindow () {
-  await getConfiguration(null)
-  grpcPomodoroClient = new grpcProto.Pomodoro(configuration.messengerHostPort, grpc.credentials.createInsecure());
-  grpcTaskClient  = new grpcProto.TaskUpdatedNotifier(configuration.messengerHostPort, grpc.credentials.createInsecure());
   /**
    * Initial window options
    */
@@ -143,68 +150,10 @@ async function createMainWindow () {
       preload: path.resolve(__dirname, process.env.QUASAR_ELECTRON_PRELOAD)
     }
   })
-  //console.log('main APP URL:')
   console.log(`Loading main window @ ${process.env.APP_URL}`)
-  //console.log('loading tm2000://#/')
-  //mainWindow.loadURL(`tm2000://app/`) //${process.env.APP_URL}
-
-  mainWindow.loadURL(process.env.APP_URL) //${process.env.APP_URL}
+  await mainWindow.loadURL(process.env.APP_URL+ `?page=MainLayout`)
   const menu = Menu.buildFromTemplate(getMenu())
   Menu.setApplicationMenu(menu)
-  ipcMain.handle('function:getCookie', getCookie)
-  // ipcMain.on('pomodoro-notification', async (event, message)=>{
-  //   console.log(`notification: ${message}`)
-  //   new Notification({
-  //     title: 'TM2000/Pomodoro',
-  //     body: message
-  //   }).show()
-  // })
-  ipcMain.on('tm2000-openPage', (event, page, params=null)=>{
-    openWindow(page, params)
-  })
-  ipcMain.on('tm2000-openTaskPage', (event, page, params=null)=>{
-    openTaskWindow(page, params)
-  })
-  ipcMain.on('tm2000-openEpicPage', (event, page, params=null)=>{
-    openEpicWindow(page, params)
-  })
-  ipcMain.on('open-external-link', (event, url)=>{
-    shell.openExternal(url);
-  })
-  ipcMain.on('notify-message', (event, message)=>{
-    new Notification({
-      title: 'TM2000/Pomodoro',
-      body: message
-    }).show()
-  })
-  ipcMain.handle('function:getConfiguration', getConfiguration)
-  ipcMain.handle('function:getLocalNote', getLocalNote)
-  ipcMain.handle('function:getSharedTimeline', ()=>{return timeLineData})
-
-  ipcMain.on('save-configuration', (event, config)=>{
-    saveConfiguration(config)
-  })
-  ipcMain.on('set-whoami', (event, user)=>{
-    if (user && (!currentUser || currentUser != user)){
-      currentUser= user
-      setPomodoroWatcher(grpcPomodoroClient, currentUser, configuration)
-      taskWatcherStreamingCall(grpcTaskClient, currentUser)
-    }
-  })
-  ipcMain.on('pomodoro-timer-click', (event, task) => {
-    pomodoroOnTimerClick(task)
-  })
-  ipcMain.on('share-timeline', (event, data) => {
-    console.log(data)
-    timeLineData = data
-  })
-  ipcMain.on('pomodoro-menu-click', (event) => {
-    showPomodoroMenu()
-  })
-  addPomodoroTickSubscriber((message)=>{
-    mainWindow.webContents.send('pomodoro-tick', message)
-  })
-  //await pomodoroRehydrate()
 
   if (process.env.DEBUGGING) {
      // if on DEV or Production with debug enabled
@@ -217,11 +166,13 @@ async function createMainWindow () {
   //   })
   // }
   mainWindow.on('closed', () => {
-    for (const [key, aWindow] of taskWindows.entries()) {
-      aWindow.close()
-    }
-    for (const [key, aWindow] of toolWindows.entries()) {
-      aWindow.close()
+    if (platform !== 'darwin') {
+      for (const [key, aWindow] of taskWindows.entries()) {
+        aWindow.close()
+      }
+      for (const [key, aWindow] of toolWindows.entries()) {
+        aWindow.close()
+      }
     }
     mainWindow = null
   })
@@ -350,9 +301,9 @@ function openEpicWindow(page, params){
     epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     epicWindows.set(`${page}${params}`, epicWindow)
     epicWindow.on('closed', () => {
-      if (mainWindow){
-        mainWindow.webContents.send('updateBoard')
-      }
+      // if (mainWindow){
+      //   mainWindow.webContents.send('updateBoard')
+      // }
       epicWindows.delete(`${page}${params}`);
     })
   }
@@ -368,17 +319,32 @@ function openTimeline(){
 }
 
 function openPomodoroTimerWindow() {
+  // let windowWidth = 800
+  // let windowHeight = 600;
+  // if (configuration[`PomodoroWindowWidth`]){
+  //   windowWidth = configuration[`PomodoroWindowWidth`]
+  // }
+  // if (configuration[`PomodoroWindowHeight`]){
+  //   windowHeight = configuration[`PomodoroWindowHeight`]
+  // }
   pomodoroWindow = openWindow('pomodoroTimer', null, {
-    width: 800,
-    height: 49,
     skipTaskbar: true,
     title: 'Pomodoro Timer',
+    //width: windowWidth,
+    //height: windowHeight,
   })
+  // pomodoroWindow.on('resize', ()=>{
+  //   const [width, height] = pomodoroWindow.getSize()
+  //   let size = {}
+  //   size[`PomodoroWindowWidth`] = width
+  //   size[`PomodoroWindowHeight`] = height
+  //   saveConfiguration(size)
+  // })
   //pomodoroWindow.webContents.openDevTools()
   addPomodoroTickSubscriber((message)=>{
     pomodoroWindow.webContents.send('pomodoro-tick', message)
   })
-  pomodoroWindow.setMenu(null)
+  // pomodoroWindow.setMenu(null)
   pomodoroWindow.setAlwaysOnTop(true, 'screen');
   return undefined;
 }
@@ -386,11 +352,25 @@ function openPomodoroTimerWindow() {
 //app.whenReady().then(createWindow)
 
 app.on('window-all-closed', () => {
-  app.quit()
-  // if (platform !== 'darwin') {
-  // }
+  if (platform !== 'darwin') {
+    app.quit()
+  }
 })
 
+app.on('activate', async () => {
+  if (platform === 'darwin') {
+    if (mainWindow == null) {
+      await createMainWindow()
+    }
+    else {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+    }
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -404,52 +384,70 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-app.whenReady().then(() => {
-  // console.log('will handle tm2000...')
-  // protocol.handle('tm2000', (req) => {
-  //   const { host, pathname } = new URL(req.url)
-  //   if (host === 'app') {
-  //     // if (pathname === '/') {
-  //     //   return new Response('<h1>hello, world</h1>', {
-  //     //     headers: { 'content-type': 'text/html' }
-  //     //   })
-  //     // }
-  //     // NB, this checks for paths that escape the bundle, e.g.
-  //     // app://bundle/../../secret_file.txt
-  //     // const pathToServe = path.resolve(__dirname, pathname)
-  //     // const relativePath = path.relative(__dirname, pathToServe)
-  //     // const isSafe = relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
-  //     // if (!isSafe) {
-  //     //   return new Response('bad', {
-  //     //     status: 400,
-  //     //     headers: { 'content-type': 'text/html' }
-  //     //   })
-  //     // }
-  //     // return net.fetch(pathToFileURL(pathToServe).toString())
-  //     return net.fetch(process.env.APP_URL + pathname, {
-  //       method: req.method,
-  //       headers: req.headers,
-  //       body: req.body
-  //     })
-  //   } else if (host === 'api') {
-  //     return net.fetch('http://localhost:5000' + pathname, {
-  //       method: req.method,
-  //       headers: req.headers,
-  //       body: req.body,
-  //       credentials: 'include',
-  //       mode: 'cors',
-  //       bypassCustomProtocolHandlers: true
-  //     })
-  //   }
-  // })
-  createMainWindow()
+
+async function initGRPC(){
+  let configuration = await getConfiguration(null)
+  grpcPomodoroClient = new grpcProto.Pomodoro(configuration.messengerHostPort, grpc.credentials.createInsecure());
+  grpcTaskClient  = new grpcProto.TaskUpdatedNotifier(configuration.messengerHostPort, grpc.credentials.createInsecure());
+}
+
+async function initHandlers(){
+  ipcMain.handle('function:getCookie', getCookie)
+  ipcMain.on('tm2000-openPage', (event, page, params=null)=>{
+    openWindow(page, params)
+  })
+  ipcMain.on('tm2000-openTaskPage', (event, page, params=null)=>{
+    openTaskWindow(page, params)
+  })
+  ipcMain.on('tm2000-openEpicPage', (event, page, params=null)=>{
+    openEpicWindow(page, params)
+  })
+  ipcMain.on('open-external-link', (event, url)=>{
+    shell.openExternal(url);
+  })
+  ipcMain.on('notify-message', (event, message)=>{
+    new Notification({
+      title: 'TM2000/Pomodoro',
+      body: message
+    }).show()
+  })
+  ipcMain.handle('function:getConfiguration', getConfiguration)
+  ipcMain.handle('function:getLocalNote', getLocalNote)
+  ipcMain.handle('function:getSharedTimeline', ()=>{return timeLineData})
+
+  ipcMain.on('save-configuration', (event, config)=>{
+    saveConfiguration(config)
+  })
+  ipcMain.on('set-whoami', (event, user)=>{
+    if (user && (!currentUser || currentUser != user)){
+      currentUser= user
+      setPomodoroWatcher(grpcPomodoroClient, currentUser, configuration)
+      taskWatcherStreamingCall(grpcTaskClient, currentUser)
+      epicWatcherStreamingCall(grpcTaskClient, currentUser)
+    }
+  })
+  ipcMain.on('pomodoro-timer-click', (event, task) => {
+    pomodoroOnTimerClick(task)
+  })
+  ipcMain.on('share-timeline', (event, data) => {
+    console.log(data)
+    timeLineData = data
+  })
+  ipcMain.on('pomodoro-menu-click', (event, tasks) => {
+    showPomodoroMenu(tasks)
+  })
+  addPomodoroTickSubscriber((message)=>{
+    mainWindow.webContents.send('pomodoro-tick', message)
+  })
+  //await pomodoroRehydrate()
+}
+
+app.whenReady().then(async () => {
+  await initGRPC()
+  await initHandlers()
+  await createMainWindow()
 })
 
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createMainWindow()
-  }
-})
 
 app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
   // console.log(certificate.issuer)
@@ -478,7 +476,28 @@ function taskWatcherStreamingCall(client, user) {
       mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
     });
     call.on('status', status => {
-      console.log(`[${requestId}] wanted = ${grpc.status[expectedCode]} got = ${grpc.status[status.code]}`);
+      console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);
+      resolve();
+    });
+    call.on('error', () => {
+      // Ignore error event
+    });
+    //call.end();
+  });
+}
+
+function epicWatcherStreamingCall(client, user) {
+  return new Promise((resolve, reject) => {
+    console.log('epicWatcherStreamingCall')
+    const call = client.SubscribeEpicWatcher({user: user})
+    call.on('data', async (updatedEpic) => {
+      console.log('Received updated epic')
+      console.log(updatedEpic)
+      //console.log(task)
+      mainWindow.webContents.send('on-epic-update', updatedEpic.id_epic, updatedEpic.id_project, updatedEpic.op)
+    });
+    call.on('status', status => {
+      console.log(`SubscribeEpicWatcher got = ${grpc.status[status.code]}`);
       resolve();
     });
     call.on('error', () => {

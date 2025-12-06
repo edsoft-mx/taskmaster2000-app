@@ -1,6 +1,6 @@
 <script setup>
 import TMKanban from "components/tmKanban.vue";
-import {ref, defineProps} from 'vue'
+import {ref, defineProps, inject} from 'vue'
 import TMTaskContainer from "components/tmTaskContainer.vue";
 
 defineOptions({
@@ -33,8 +33,14 @@ const events = defineEmits([
   'dragOver',
   'dragLeave',
   'drop',
-  'maximize'
+  'maximize',
+  'goToDetail',
+  'goToDetailEpic',
+  'goToParent',
+  'goToParentEpic',
 ])
+const globalSelectedTask = inject('globalSelectedTask')
+
 
 let showDetails = ref(false)
 
@@ -55,11 +61,23 @@ function epicDetail(){
   return result
 }
 
+function getClasses(){
+  let result = 'superTask'
+  if (globalSelectedTask.value!=null && globalSelectedTask.value?.idEpic===props.epic.idEpic){
+    result += ' selectedTask'
+  }
+  return result
+}
+
 </script>
 
 <template>
-  <div class="superTask" >
+  <div :class="getClasses()" :style="`border: solid 4px ${epic.color}`" >
     <img src="epic.png" style="width:16px; height: 16px; vertical-align: middle;"/>&nbsp;
+    <button @click="$emit('go-to-parent-epic', epic)" title="Go to Parent Task"
+            class="buttonTaskAction2" >
+      <span class="material-icons-outlined material-icons" >zoom_out</span>
+    </button>
     <button @click="$emit('toggle-epic', epic)" :title="epic.expanded ? 'Hide Tasks':'Show Tasks'"
             class="buttonTaskAction2" >
       <span class="material-icons-outlined material-icons" v-if="!epic.expanded">expand_more</span>
@@ -71,7 +89,6 @@ function epicDetail(){
     <button @click="$emit('select', epic);toggleSuperTaskInfo()" title="Show description" class="buttonTaskAction2" style="position: relative;">
       <span class="material-icons-outlined material-icons">info</span>
     </button>
-    &nbsp;
     <button @click="editTask" type="button" title="Edit task" class="buttonTaskAction2" style="position: relative">
       <span class="material-icons-outlined material-icons">edit</span>
     </button>
@@ -82,6 +99,8 @@ function epicDetail(){
 
     <TMKanban :parent="epic" :tasks="tasks" :states="states" :id-board="idBoard"
               @toggle-detail="(element)=>{$emit('toggle-detail',element)}"
+              @go-to-detail="(element)=>{$emit('go-to-detail',element)}"
+              @go-to-detail-epic="(element)=>{$emit('go-to-detail-epic',element)}"
               @select="(subTask)=>{$emit('select', subTask)}"
               @maximize="(t)=>$emit('maximize', t)" :idPrefix="`epic_${epic.idEpic}`"
     />
@@ -89,6 +108,7 @@ function epicDetail(){
       <div v-if="task.expanded && task.hasSubTasks" >
         <TMTaskContainer :states="states" :task="task" :tasks="task.subTasks" :id-board="idBoard"
                          :id="`super-task-${task.idTask}`"
+                         @go-to-parent="(element)=>{$emit('go-to-parent',element)}"
                          @toggle-detail="(element)=>{$emit('toggle-detail',element)}"
                          @select="(subTask)=>{$emit('select', subTask)}"
                          @maximize="(t)=>$emit('maximize', t)"

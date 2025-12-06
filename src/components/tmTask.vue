@@ -19,6 +19,7 @@ const props = defineProps({
 const events = defineEmits([
   'toggleDetail',
   'select',
+  'goToDetail'
 ])
 
 
@@ -75,6 +76,10 @@ function taskClasses(){
     </button>
     <button @click="editTask" type="button" title="Edit task" class="buttonTaskAction" style="bottom: 4px; right: 4px; ">
       <span class="material-icons-outlined material-icons">edit</span>
+    </button>
+    <button v-if="task.hasSubTasks && task.expanded"  @click="$emit('go-to-detail', task)" title="Go To Subtasks"
+            class="buttonTaskAction" style="right: 76px; bottom: 4px;" >
+      <span class="material-icons-outlined material-icons">zoom_in</span>
     </button>
     <button v-if="task.hasSubTasks"  @click="$emit('toggle-detail', task)" :title="task.expanded ? 'Hide Subtasks':'Show Subtasks'"
             class="buttonTaskAction" style="right: 52px; bottom: 4px;" >

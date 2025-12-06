@@ -351,7 +351,7 @@ async function pomodoroStartWithPrevious(){
 }
 
 function getPomodoroDataObject(){
-  return {
+  let data = {
     timerActive: pomodoroData.timerActive,
     session: pomodoroData.session,
     start: pomodoroData.start,
@@ -362,6 +362,14 @@ function getPomodoroDataObject(){
     breakExpiredATimeAgo: pomodoroData.breakExpiredATimeAgo,
     task: pomodoroData.task,
   }
+  data.breakExpiredATimeAgo = false
+  if (!data.timerActive && data.session > 0) {
+    let now = new Date()
+    let delta =  (now - data.epoch) / 1000
+    data.breakExpiredATimeAgo = delta > 300
+  }
+  //console.log(data)
+  return data
 }
 
 // async function setPomodoroSession(index, notify=true){
@@ -431,14 +439,29 @@ function addPomodoroTickSubscriber(subscriber){
   pomodoroData.eventSubscribers.push(subscriber)
 }
 
-function showPomodoroMenu(){
+function startATask(value){
+  console.log(`Starting task ${value}`)
+  pomodoroOnTimerClick(value)
+}
+
+function showPomodoroMenu(tasks){
+  //console.log(tasks)
+
+  let tasksHandler = []
+  for (let i=0; i<tasks.length; i++){
+    let t = tasks[i];
+    tasksHandler.push({type: 'normal', label: t.label, click: () => startATask(t.value) })
+  }
+
   let popupTemplate= [
     {type: 'normal', label: 'Pause Session', enabled: pomodoroData.timerActive, click: ()=>pomodoroToggle()},
     {type: 'normal', label: 'Resume Session', enabled: !pomodoroData.timerActive && pomodoroData.task, click: ()=>pomodoroToggle()},
     {type: 'normal', label: 'Skip to next session', enabled: isPomodoroSessionSkippable(), click: ()=>pomodoroSkipToNextSession()},
     {type: 'normal', label: `Start session for ${pomodoroData.previousTask?.title}`,
       enabled: isPomodoroPreviousSessionAvailable(), click: ()=>pomodoroStartWithPrevious()},
+    {label: "Start...", submenu: tasksHandler}
   ];
+
   const menu = Menu.buildFromTemplate(popupTemplate);
   if (!menu)
     return;

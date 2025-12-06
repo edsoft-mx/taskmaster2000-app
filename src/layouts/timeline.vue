@@ -9,35 +9,16 @@ import {ref, reactive, defineProps, watch, inject, onBeforeMount, onMounted, onU
 import {callApi, store_configuration, Timeline} from 'src/common'
 import Chart from 'chart.js/auto';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-//import { Bar } from 'vue-chartjs'
-//import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 
 //ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 Chart.register(ChartDataLabels);
-// let workDayData = reactive({
-//   length: 0,
-//   first: 0,
-//   last: 0,
-//   cw: 500,
-//   canvasHeight: 500,
-//   conversion: 0,
-//   weeklyData: new Map(),
-//   dayNameMap: new Map(),
-//   //dayNameReverseMap: new Map(),
-//   daysToShow: [],
-//   workingHours: [],
-//   projects: {},
-//   projectTotals: {}
-// })
 
 let inited=false
 let timelineObject = ref(null)
 let onlyBilled = ref(false)
-let includeBreaks = ref(true)
+let includeBreaks = ref(false)
 let chartObject=null
 let dateRange = ref({from: "", to: ""})
-let canvasRefs = useTemplateRef(['canvases'])
-
 
 let chart1Data = {
   labels: [],
@@ -175,7 +156,7 @@ function formatDate(aDate){
 }
 
 async function getData(dataDateRange=null) {
-  let canvas = document.getElementById('canvasTimeline')
+  // let canvas = document.getElementById('canvasTimeline')
   console.log('timeline')
   if (chartObject!=null){
     chartObject.destroy()
@@ -198,7 +179,7 @@ async function getData(dataDateRange=null) {
   }
   timelineObject.value = new Timeline(
     currentWeek,
-    canvas ? canvas.clientHeight : 2300,
+    2300,
     includeBreaks.value,
     onlyBilled.value
     )
@@ -246,61 +227,11 @@ watch(
   }
 )
 
-function getCanvasContainer(element) {
-  // Check if the element is an SVG element.
-  if (element instanceof SVGElement) {
-    // Traverse up the DOM tree until we find the canvas element.
-    let currentElement = element;
-    while (currentElement) {
-      if (currentElement.tagName === 'svg') {
-        return currentElement; // Found the canvas container.
-      }
-      currentElement = currentElement.parentElement;
-    }
-  }
-  return null; // Canvas container not found.
-}
-
-function isWithinTimeInterval(instant, interval) {
-  return Number(interval.start) <= instant && instant <= Number(interval.end)
-}
-
-function toRawObject(reactiveObject) {
-  if (!reactiveObject) {
-    return reactiveObject; // Handle null or undefined inputs
-  }
-
-  if (typeof reactiveObject !== 'object') {
-    return reactiveObject; // Handle primitive types
-  }
-
-  if (Array.isArray(reactiveObject)) {
-    return reactiveObject.map(item => toRawObject(item));
-  }
-
-  const rawObject = {};
-  for (const key in reactiveObject) {
-    if (Object.prototype.hasOwnProperty.call(reactiveObject, key)) {
-      // Vue 3: use toRaw()
-      if(typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null && '__v_raw' in reactiveObject[key]){
-        rawObject[key] = Vue.toRaw(reactiveObject[key]);
-      } else if (typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null) {
-        rawObject[key] = toRawObject(reactiveObject[key]);
-      } else {
-        rawObject[key] = reactiveObject[key];
-      }
-    }
-  }
-  return rawObject;
-}
-
-
-
 onMounted(async ()=>{
-  console.log('mounted')
+  console.log('timeline window . mounted')
   let config = await window.electronAPI.getConfiguration()
   if (config) {
-    console.log('Loaded configuration')
+    //console.log('Loaded configuration')
     //console.log(config)
     if (!config){
       return
@@ -308,24 +239,13 @@ onMounted(async ()=>{
     store_configuration(config)
   }
   await getData()
-  if (canvasRefs.value){
-    //console.log(canvasRefs.value)
-    for (let c of canvasRefs.value){
-      c.addEventListener('dblclick', handleCanvasClick)
-    }
-  }
-})
 
-
-onUnmounted(async ()=> {
-  if (canvasRefs.value){
-    for (let c of canvasRefs.value){
-      c.removeEventListener('dblclick', handleCanvasClick)
-    }
-  }
 })
 
 window.electronAPI.onRefreshTimeline(async() => {
+  if (chartObject.destroy()) {
+    chartObject.destroy()
+  }
   await getData();
 })
 

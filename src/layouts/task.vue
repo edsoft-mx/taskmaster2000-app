@@ -1,4 +1,5 @@
 <script setup>
+
 defineOptions({
   name: 'tm-task'
 });
@@ -110,9 +111,9 @@ function searchParam(key) {
 async function getData(){
   let apiCallBoard = callApi('GET', `user/boards/${props.idBoard}`)
   let apiCallEpics = callApi('GET', `user/boards/${props.idBoard}/epics`)
-  let result = await apiCallBoard
-  boardData.name= result.name
-  boardData.states = result.states
+  let parentBoardData = await apiCallBoard
+  boardData.name= parentBoardData.name
+  boardData.states = parentBoardData.states
 
   let sel = document.getElementById('selTaskType')
   for (let state of boardData.states){
@@ -121,7 +122,7 @@ async function getData(){
   }
   //dummy()
   boardData.projectsMap.clear()
-  boardData.projects = result.projects
+  boardData.projects = parentBoardData.projects
   boardProjects.value = []
   for (let prj of boardData.projects){
     boardProjects.value.push({
@@ -167,17 +168,26 @@ async function getData(){
     formData.priority = taskPriorities.find(tp => tp.label === "Normal")
     formData.taskType = taskTypes.find(tt => tt.value === (!isSubTask.value ? "task" : "subtask"))
     formData.project = boardProjects.value[0]
-    updateEpics4Project(formData.project)
+    await updateEpics4Project(formData.project)
     if (!isSubTask.value){
-      console.log(props.idEpic)
+      //console.log(props.idEpic)
       title = "New Task"
       if (hasEpic.value) {
+        let theEpic = epics.find(e => e.idEpic == props.idEpic)
+        //console.log(theEpic)
+        formData.project = boardProjects.value.find(p => p.value === theEpic.idProject)
+        await updateEpics4Project(formData.project)
+        //console.log(boardProjectEpics.value)
         formData.epic = boardProjectEpics.value.find(p => p.value == props.idEpic)
+        // console.log('here')
+        // console.log(formData.epic)
         title += ` for Epic: ${formData.epic.label}`
       }
     }
     else {
+      formData.project = boardProjects.value.find(p => p.value === formData.parentTask.idProject)
       title = `New Subtask for Task: ${formData.parentTask.key}`
+      //console.log(hasEpic.value)
     }
     formData.state = searchParam('state')
     formData.xtraData = {}
@@ -187,8 +197,12 @@ async function getData(){
     let currentValues = await callApi('GET', `user/boards/${props.idBoard}/tasks/${idSearch}`)
     formData.idTask = idSearch
     formData.project = boardProjects.value.find(p => p.value === currentValues.idProject)
-    updateEpics4Project(formData.project)
-    formData.epic = boardProjectEpics.value.find(p => p.value === currentValues.epic)
+    await updateEpics4Project(formData.project)
+    // console.log("boardProjectEpics.value")
+    // console.log(boardProjectEpics.value)
+    // console.log("currentValues")
+    // console.log(currentValues)
+    formData.epic = boardProjectEpics.value.find(p => p.value == currentValues.idEpic)
     formData.key = currentValues.key
     formData.title = currentValues.title
     formData.description = currentValues.description
@@ -327,7 +341,7 @@ function editTask(subtask, parentTask){
   window.electronAPI.openTaskPage(`board/${props.idBoard}/task/${parentTask.idTask}/${subtask.idTask}`, null)
 }
 
-function updateEpics4Project(newValue){
+async function updateEpics4Project(newValue){
   let result = []
   if (newValue) {
     for (let epic of boardAllEpics.value){
@@ -432,7 +446,7 @@ onMounted(async ()=> {
             <div style="width: 50%; padding-right: 16px">
               <q-select v-model="formData.project" :options="boardProjects" label="Project" @update:model-value="updateEpics4Project" />
             </div>
-            <div style="width: 50%; ">
+            <div style="width: 50%; " v-show="hasEpic || !isSubTask">
               <q-select v-model="formData.epic" :options="boardProjectEpics" label="Epic" />
             </div>
           </div>

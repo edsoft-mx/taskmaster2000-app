@@ -2,8 +2,8 @@
 defineOptions({
   name: 'tm-admin-groups'
 });
-import {ref, watch} from 'vue'
-import { callApi } from 'src/common'
+import {onMounted, ref, watch} from 'vue'
+import {callApi, store_configuration} from 'src/common'
 
 const groups = ref([])
 const users = ref([])
@@ -36,7 +36,6 @@ async function getData()  {
   }
   window.document.title = 'Manage Groups'
 }
-getData();
 
 function getUserByIdO(ido){
   return users.value.find((u) => u.id_o === ido);
@@ -91,6 +90,21 @@ async function removeRole2User(){
     }
   }
 }
+
+onMounted(async ()=> {
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
+  await getData()
+})
+
 </script>
 
 <template>

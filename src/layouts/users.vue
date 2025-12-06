@@ -3,8 +3,8 @@ defineOptions({
   name: 'tm-admin-users'
 });
 
-import { ref } from 'vue'
-import { callApi } from 'src/common'
+import {onMounted, ref} from 'vue'
+import {callApi, store_configuration} from 'src/common'
 
 const userId= ref(0)
 const username= ref("")
@@ -142,7 +142,19 @@ async function submitUser() {
   }
 }
 
-getData();
+onMounted(async ()=> {
+  console.log('mounted')
+  let config = await window.electronAPI.getConfiguration()
+  if (config) {
+    console.log('Loaded configuration')
+    //console.log(config)
+    if (!config){
+      return
+    }
+    store_configuration(config)
+  }
+  await getData()
+})
 
 </script>
 

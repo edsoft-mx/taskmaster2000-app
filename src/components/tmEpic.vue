@@ -13,6 +13,7 @@ const props = defineProps({
 const events = defineEmits([
   'select',
   'toggleEpic',
+  'goToDetailEpic'
 ])
 
 function styleForTask(){
@@ -56,6 +57,10 @@ function editEpic(){
                class="buttonTaskAction" style="right: 28px; bottom: 4px;" >
         <span class="material-icons-outlined material-icons" v-if="!epic.expanded">expand_more</span>
         <span class="material-icons-outlined material-icons" v-if="epic.expanded">expand_less</span>
+      </button>
+      <button v-if="epic.expanded" @click="$emit('go-to-detail-epic', epic)" title="Go To Epic's Tasks"
+              class="buttonTaskAction" style="right: 52px; bottom: 4px;" >
+        <span class="material-icons-outlined material-icons">zoom_in</span>
       </button>
     </div>
   </div>
