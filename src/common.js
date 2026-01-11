@@ -119,6 +119,7 @@ export class Timeline {
       projectTotals: {},
       todayKey: events.today_key,
     }
+    this.intervalsMap = new Map()
     this.chartData = {
       datasets: [],
       labels: [],
@@ -231,6 +232,10 @@ export class Timeline {
         let current = projectsDaily.get(prj)
         current+= elapsed
         projectsDaily.set(prj, current)
+        if (intervals.intervals_with_idle[i]?.idInterval){
+          this.intervalsMap.set(intervals.intervals_with_idle[i].idInterval, intervals.intervals_with_idle[i])
+          //intervals.intervals_with_idle[i].selected = false
+        }
       }
       for (let prj in this.workDayData.projects){
         if (!includeBreaks && prj==='Break'){
@@ -297,6 +302,7 @@ export class Timeline {
     if (interval.collisions === 0){
       return 0
     }
+
     let p = 100 / interval.collisions
     return `${p * interval.column + extra }%`
   }

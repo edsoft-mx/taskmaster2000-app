@@ -53,13 +53,14 @@ const events = defineEmits([
 ])
 
 
-let canvasRefs = useTemplateRef('canvases')
+// let canvasRefs = useTemplateRef('canvases')
 
 let inited=false
 let counterCurrentTimeIntoView = 0
 let mountedFlag = false
 let mountedDblClickFlag = false
 let timelineObject = ref(null)
+let selectedInterval = ref(0)
 //let allProjects = null
 
 async function getData(dataDateRange=null) {
@@ -130,7 +131,7 @@ function toRawObject(reactiveObject) {
   return rawObject;
 }
 
-function handleCanvasClick(event){
+function handleCanvasClick(event, dow){
   let c = document.getElementById(event.target.id)
   if (!c){
     c= getCanvasContainer(event.target)
@@ -212,16 +213,16 @@ function handleCanvasSingleClick(event){
   }
 }
 
-onUnmounted(async ()=>{
-  if (canvasRefs.value){
-    console.log('removing dblclick event handler to canvas')
-    //console.log(canvasRefs.value)
-    for (let c of canvasRefs.value){
-      c.removeEventListener('dblclick', handleCanvasClick)
-      c.removeEventListener('click', handleCanvasSingleClick)
-    }
-  }
-})
+// onUnmounted(async ()=>{
+//   // if (canvasRefs.value){
+//   //   console.log('removing dblclick event handler to canvas')
+//   //   //console.log(canvasRefs.value)
+//   //   for (let c of canvasRefs.value){
+//   //     c.removeEventListener('dblclick', handleCanvasClick)
+//   //     c.removeEventListener('click', handleCanvasSingleClick)
+//   //   }
+//   // }
+// })
 
 onMounted(async ()=>{
   mountedFlag = false
@@ -248,18 +249,18 @@ onMounted(async ()=>{
   }
   console.log('tmTimeline.mounted: getting data...')
   await getData()
-  if (canvasRefs.value && !mountedDblClickFlag){
-    console.log('adding dblclick event handler to canvas')
-    //console.log(canvasRefs.value)
-    mountedDblClickFlag = true
-    for (let c of canvasRefs.value){
-      c.addEventListener('dblclick', handleCanvasClick)
-      c.addEventListener('click', handleCanvasSingleClick)
-    }
-  }
-  else {
-    console.log('No dblclick event handler to canvas')
-  }
+  // if (canvasRefs.value && !mountedDblClickFlag){
+  //   console.log('adding dblclick event handler to canvas')
+  //   //console.log(canvasRefs.value)
+  //   mountedDblClickFlag = true
+  //   for (let c of canvasRefs.value){
+  //     c.addEventListener('dblclick', handleCanvasClick)
+  //     c.addEventListener('click', handleCanvasSingleClick)
+  //   }
+  // }
+  // else {
+  //   console.log('No dblclick event handler to canvas')
+  // }
   mountedFlag= true
 })
 
@@ -270,18 +271,18 @@ watch(props, async ()=>{
     return
   }
   await getData()
-  if (canvasRefs.value && !mountedDblClickFlag){
-    console.log('adding dblclick event handler to canvas')
-    //console.log(canvasRefs.value)
-    mountedDblClickFlag = true
-    for (let c of canvasRefs.value){
-      c.addEventListener('dblclick', handleCanvasClick)
-      c.addEventListener('click', handleCanvasSingleClick)
-    }
-  }
-  else {
-    console.log('No dblclick event handler to canvas')
-  }
+  // if (canvasRefs.value && !mountedDblClickFlag){
+  //   console.log('adding dblclick event handler to canvas')
+  //   //console.log(canvasRefs.value)
+  //   mountedDblClickFlag = true
+  //   for (let c of canvasRefs.value){
+  //     c.addEventListener('dblclick', handleCanvasClick)
+  //     c.addEventListener('click', handleCanvasSingleClick)
+  //   }
+  // }
+  // else {
+  //   console.log('No dblclick event handler to canvas')
+  // }
 })
 
 window.electronAPI.onRefreshTimeline(async() => {
@@ -355,6 +356,30 @@ function checkCurrentTimeIntoView(){
   // console.log(scroll)
 }
 
+function handleEventClick(event){
+  const id = Number(event.target.dataset.id);
+  console.log(`clicked on event with ${id}`)
+  console.log(timelineObject.value.intervalsMap)
+  if (timelineObject.value.intervalsMap.has(id)){
+    console.log('found the interval!')
+    selectedInterval.value = id
+      //timelineObject.value.intervalsMap.get(id)
+    console.log(selectedInterval)
+  }
+}
+
+function handleEventDblClick(event){
+  const id = Number(event.target.dataset.id);
+  console.log(`clicked on event with ${id}`)
+  console.log(timelineObject.value.intervalsMap)
+  if (timelineObject.value.intervalsMap.has(id)){
+    console.log('found the interval!')
+    selectedInterval.value = id
+      //timelineObject.value.intervalsMap.get(id)
+    console.log(selectedInterval)
+  }
+}
+
 window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
   // console.log('pomodoroMsg')
   // console.log(pomodoroMsg)
@@ -410,7 +435,7 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
     <div v-for="dow in timelineObject?.workDayData.daysToShow" :key="dow" class="flex-items">
       <div class="dowHeader">{{ timelineObject.workDayData.dayNameMap.get(dow) }}</div>
       <div class="canvasContainer">
-        <svg class="canvas" ref="canvases" :id="`canvas${dow}`" >
+        <svg class="canvas" ref="canvases" :id="`canvas${dow}`" @dblclick="handleCanvasClick($event, dow)" >
           <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
                 :y2="timelineObject.tickYPosition(tick)" />
           <line v-if="dow == timelineObject.workDayData.todayKey" stroke="red"
@@ -433,16 +458,17 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
           </g>
           <g v-for="interval in timelineObject.workDayIntervals(dow)" :key="interval.id">
             <rect
+              @click="handleEventClick" :data-id="interval.idInterval"
               :x="timelineObject.getIntervalXi(interval)"
               :y="timelineObject.getIntervalY(interval)"
               :width="timelineObject.getIntervalWidthColumn(interval)"
               :fill="interval.color" :fill-opacity="interval?.tentative ? '70%': '100%'"
               stroke="white"
-              :height="timelineObject.getIntervalHeight(interval)"
-              :title="interval.task" />
+              :height="timelineObject.getIntervalHeight(interval)" />
             <text :x="timelineObject.getIntervalXi(interval)"
                   :y="timelineObject.getIntervalY(interval)+16"
-                  v-if="timelineObject.isLongEnough4Text(interval)" class="taskTitle" >
+                  v-if="timelineObject.isLongEnough4Text(interval)"
+                  :class="interval?.idInterval===selectedInterval ? 'taskTitleSelected' : 'taskTitle'" >
               <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="0">{{ interval.task }}</tspan>
               <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">{{ interval.taskKey }}</tspan>
               <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">{{ timelineObject.getTimeOfDay(interval.elapsed) }}</tspan>
@@ -587,6 +613,14 @@ div.dowHeader{
   font-family: Arial, Helvetica, sans-serif;
   font-style: normal;
   fill: white;
+  font-size: 12px;
+}
+
+.taskTitleSelected {
+  font-family: Arial, Helvetica, sans-serif;
+  font-style: normal;
+  fill: white;
+  font-weight: bold;
   font-size: 12px;
 }
 
