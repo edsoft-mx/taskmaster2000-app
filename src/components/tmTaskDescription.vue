@@ -1,6 +1,6 @@
 <script setup>
 import {VueShowdown} from "vue-showdown";
-import { ref, defineProps, defineEmits, watch, computed, onMounted } from 'vue'
+import { ref, defineProps, watch, computed, onMounted } from 'vue'
 import {
   projectMap,
 } from 'src/commonObjects'
@@ -144,7 +144,7 @@ function getCalendarForTask(aDate){
 }
 
 function getTaskColor(aDate){
-  let events= props.task.daysWorked
+  // let events= props.task.daysWorked
   if (props.task.dueDate && props.task.dueDate.substring(0,10).replaceAll('-','/')===aDate){
     //console.log("due")
     //console.log(props.task.dueDate)
@@ -191,7 +191,7 @@ async function saveNotes(){
 
 watch(
   () => taskChecklists,
-  async (newVal, oldVal) => {
+  async (newVal) => {
     if (newVal==null || props.task==null){
       return
     }

@@ -61,7 +61,7 @@ async function getData()  {
   let apiCallBoards = callApi('GET', 'user/boards')
   let apiCallBoardTypes= callApi('GET', 'user/boards/types/')
   let apiCallProjects = callApi('GET', 'user/projects')
-  let apiCallTags = callApi('GET', 'user/tags')
+  // let apiCallTags = callApi('GET', 'user/tags')
   // dummy();
   rows.value = []
   let boards = await apiCallBoards
@@ -105,7 +105,7 @@ function clearForm(){
   }
 }
 
-async function showForm(selectedRow){
+async function showForm(){
   if (formOp.value === "edit"){
     // for (let i = 0; i < kindsOfBoards.value.length; i++) {
     //   if (kindsOfBoards.value[i].idStateSet === formData.idStateSet){
@@ -139,7 +139,7 @@ function newObject(){
   showForm()
 }
 
-function editObject(event, row, index){
+function editObject(event, row){
   console.log('edit board')
   console.log(row)
   formOp.value = "edit";
@@ -192,9 +192,10 @@ async function submitForm() {
     projects: selProjects, //formData.lookupProjects.map((p => p.value)),
     tags: [], //formData.tags.map((t) => t.value),
   }
+  let newObject
   switch (formOp.value) {
     case "add":
-      const newObject = await callApi("POST", "user/boards", data);
+      newObject = await callApi("POST", "user/boards", data);
       rows.value.push(newObject);
       hideForm();
       break
@@ -219,37 +220,38 @@ onMounted(async ()=> {
   }
   await getData()
 })
-
 </script>
 
 <template>
-  <div id="mainContainer" style="position: relative;">
+  <div id="mainContainer" style="position: relative">
     <div class="q-pa-md">
       <q-table
-          class="my-sticky-header-table"
-          flat bordered
-          title="Boards"
-          :rows="rows"
-          :columns="columns"
-          row-key="id"
+        class="my-sticky-header-table"
+        flat
+        bordered
+        title="Boards"
+        :rows="rows"
+        :columns="columns"
+        row-key="id"
       >
-
         <template v-slot:body="props">
-          <q-tr :props="props" :key="`m_${props.row.index}`" >
-            <q-td
-                v-for="col in props.cols"
-                :key="col.name"
-                :props="props"
-            >
-              <q-btn v-if="col.name=='id'" dense icon="edit" @click="editObject(null, props.row, props.row.index)" ></q-btn>&nbsp;
+          <q-tr :props="props" :key="`m_${props.row.index}`">
+            <q-td v-for="col in props.cols" :key="col.name" :props="props">
+              <q-btn
+                v-if="col.name == 'id'"
+                dense
+                icon="edit"
+                @click="editObject(null, props.row, props.row.index)"
+              ></q-btn
+              >&nbsp;
               {{ col.value }}
             </q-td>
           </q-tr>
-          <q-tr :props="props" :key="`e_${props.row.index}`" >
+          <q-tr :props="props" :key="`e_${props.row.index}`">
             <q-td></q-td>
-            <q-td style="text-align: right; vertical-align: top;">Projects:</q-td>
-            <q-td style="margin:0px; padding-top: 0px;">
-              <ul style="margin-top: 0px; margin-bottom: 8px; padding-top: 0px;">
+            <q-td style="text-align: right; vertical-align: top">Projects:</q-td>
+            <q-td style="margin: 0px; padding-top: 0px">
+              <ul style="margin-top: 0px; margin-bottom: 8px; padding-top: 0px">
                 <li v-for="proj in props.row.projects" :key="proj.idProject">
                   {{ proj.name }}
                 </li>
@@ -262,19 +264,26 @@ onMounted(async ()=> {
     <div style="text-align: right; padding-right: 10px">
       <q-btn round color="primary" fab hint="New Project" @click="newObject" icon="work_outline" />
     </div>
-    <div :style=formStyle id="divFormProject">
-      <q-form @submit="submitForm" @reset="clearForm"> >
+    <div :style="formStyle" id="divFormProject">
+      <q-form @submit="submitForm" @reset="clearForm">
+        >
         <q-card style="min-width: 350px">
           <q-card-section>
             <q-input v-model="formData.name" label="Name" id="edProjectName" />
-            <q-select v-model="formData.lookupStateSet" :options="kindsOfBoards" label="Kind of board" />
+            <q-select
+              v-model="formData.lookupStateSet"
+              :options="kindsOfBoards"
+              label="Kind of board"
+            />
             <q-separator />
-            <q-select v-model="formData.lookupProjects"
-                      :options="projects"
-                      multiple
-                      emit-value
-                      map-options
-                      label="Include task from these projects">
+            <q-select
+              v-model="formData.lookupProjects"
+              :options="projects"
+              multiple
+              emit-value
+              map-options
+              label="Include task from these projects"
+            >
               <template v-slot:option="{ itemProps, opt, selected, toggleOption }">
                 <q-item v-bind="itemProps">
                   <q-item-section>
@@ -286,13 +295,12 @@ onMounted(async ()=> {
                 </q-item>
               </template>
             </q-select>
-
           </q-card-section>
 
           <q-card-actions align="right">
-            <q-btn flat type="submit" color="primary" >Submit</q-btn>
+            <q-btn flat type="submit" color="primary">Submit</q-btn>
             <q-btn flat type="reset">Reset</q-btn>
-            <q-btn flat type="button" @click="cancelOp" >Cancel</q-btn>
+            <q-btn flat type="button" @click="cancelOp">Cancel</q-btn>
           </q-card-actions>
         </q-card>
       </q-form>
@@ -300,6 +308,4 @@ onMounted(async ()=> {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

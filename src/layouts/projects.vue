@@ -1,10 +1,10 @@
 <script setup>
 defineOptions({
-  name: 'tm-admin-projects'
-});
+  name: 'tm-admin-projects',
+})
 
-import {ref, reactive, onMounted} from 'vue'
-import {callApi, dummy, store_configuration} from 'src/common'
+import { ref, reactive, onMounted } from 'vue'
+import { callApi, store_configuration } from 'src/common'
 
 const columns = [
   {
@@ -12,26 +12,26 @@ const columns = [
     required: true,
     label: 'Id',
     align: 'left',
-    field: 'idProject'
+    field: 'idProject',
   },
   {
     name: 'name',
     required: true,
     label: 'Name',
     align: 'left',
-    field: 'name'
+    field: 'name',
   },
   {
     name: 'projectKey',
     required: false,
-    label: "Key",
+    label: 'Key',
     align: 'left',
-    field: 'projectKey'
+    field: 'projectKey',
   },
   {
     name: 'enableBilling',
     required: false,
-    label: "Enable Billing",
+    label: 'Enable Billing',
     align: 'center',
     field: 'enableBilling',
   },
@@ -40,7 +40,7 @@ const columns = [
     required: false,
     label: 'Color',
     align: 'center',
-    field: 'color'
+    field: 'color',
   },
 ]
 
@@ -51,76 +51,76 @@ const projectData = reactive({
   name: '',
   projectKey: '',
   enableBilling: false,
-  color: "#0880c0",
-  notesDirectory: ""
+  color: '#0880c0',
+  notesDirectory: '',
 })
 
 const formStyle = ref({
-  left: "20px",
-  top: "20px",
-  position: "absolute",
-  width: "500px",
-  display: "none"
+  left: '20px',
+  top: '20px',
+  position: 'absolute',
+  width: '500px',
+  display: 'none',
 })
-const formOp = ref("")
+const formOp = ref('')
 
-async function getData()  {
+async function getData() {
   let apiCallProjects = callApi('GET', 'user/projects')
   let result = await apiCallProjects
-  for (let r of result){
+  for (let r of result) {
     rows.value.push(r)
   }
   window.document.title = 'Manage Projects'
 }
 
-function clearProject(){
-  if (formOp.value !== "edit") {
-    projectData.idProject= 0
-    projectData.name= ''
-    projectData.projectKey= ''
-    projectData.enableBilling= false
-    projectData.color= "#0880c0"
+function clearProject() {
+  if (formOp.value !== 'edit') {
+    projectData.idProject = 0
+    projectData.name = ''
+    projectData.projectKey = ''
+    projectData.enableBilling = false
+    projectData.color = '#0880c0'
   }
 }
 
-function showForm(){
+function showForm() {
   const parent = document.getElementById('mainContainer')
   const divFormUser = document.getElementById('divFormProject')
-  const x = (parent.offsetWidth - 500) / 2;
+  const x = (parent.offsetWidth - 500) / 2
   formStyle.value.left = x + 'px'
   formStyle.value.display = 'block'
   const idEd = divFormUser.getElementsByTagName('input')[0].id
-  setTimeout(()=>{
-    document.getElementById(idEd).focus();
+  setTimeout(() => {
+    document.getElementById(idEd).focus()
   }, 500)
-  console.log("show time")
+  console.log('show time')
 }
 
-function hideForm(){
+function hideForm() {
   formStyle.value.display = 'none'
 }
 
-function newProject(){
-  formOp.value = "add";
+function newProject() {
+  formOp.value = 'add'
   clearProject()
   showForm()
 }
 
-function editProject(event, row, index){
-  formOp.value = "edit";
+function editProject(event, row) {
+  formOp.value = 'edit'
   showForm()
   console.log(row)
-  projectData.idProject= row.idProject;
-  projectData.name= row.name;
-  projectData.projectKey= row.projectKey;
-  projectData.enableBilling= row.enableBilling;
-  projectData.color= row.color;
-  projectData.notesDirectory= row.notesDirectory
+  projectData.idProject = row.idProject
+  projectData.name = row.name
+  projectData.projectKey = row.projectKey
+  projectData.enableBilling = row.enableBilling
+  projectData.color = row.color
+  projectData.notesDirectory = row.notesDirectory
   console.log(row)
 }
 
-function cancelOp(){
-  formStyle.value.display = 'none';
+function cancelOp() {
+  formStyle.value.display = 'none'
 }
 
 async function submitProject() {
@@ -133,53 +133,55 @@ async function submitProject() {
     color: projectData.color,
     notesDirectory: projectData.notesDirectory,
   }
+  let newProject
   switch (formOp.value) {
-    case "add":
-      const newProject = await callApi("POST", "user/projects", data);
-      rows.value.push(newProject);
-      hideForm();
+    case 'add':
+      newProject = await callApi('POST', 'user/projects', data)
+      rows.value.push(newProject)
+      hideForm()
       break
-    case "edit":
-      callApi("POST", `user/projects/${data.idProject}`, data)
-      hideForm();
+    case 'edit':
+      callApi('POST', `user/projects/${data.idProject}`, data)
+      hideForm()
       break
   }
 }
 
-onMounted(async ()=> {
+onMounted(async () => {
   console.log('mounted')
   let config = await window.electronAPI.getConfiguration()
   if (config) {
     console.log('Loaded configuration')
     //console.log(config)
-    if (!config){
+    if (!config) {
       return
     }
     store_configuration(config)
   }
   await getData()
 })
-
 </script>
 
 <template>
-  <div id="mainContainer" style="position: relative;">
+  <div id="mainContainer" style="position: relative">
     <div class="q-pa-md">
       <q-table
-          class="my-sticky-header-table"
-          flat bordered
-          title="Projects"
-          :rows="rows"
-          :columns="columns"
-          row-key="id"
-          @row-dblclick="editProject"
+        class="my-sticky-header-table"
+        flat
+        bordered
+        title="Projects"
+        :rows="rows"
+        :columns="columns"
+        row-key="id"
+        @row-dblclick="editProject"
       />
     </div>
     <div style="text-align: right; padding-right: 10px">
       <q-btn round color="primary" fab hint="New Project" @click="newProject" icon="work_outline" />
     </div>
-    <div :style=formStyle id="divFormProject">
-      <q-form @submit="submitProject" @reset="clearProject"> >
+    <div :style="formStyle" id="divFormProject">
+      <q-form @submit="submitProject" @reset="clearProject">
+        >
         <q-card style="min-width: 350px">
           <q-card-section>
             <q-input v-model="projectData.name" label="Name" id="edProjectName" />
@@ -198,9 +200,9 @@ onMounted(async ()=> {
           </q-card-section>
           <q-separator />
           <q-card-actions align="right">
-            <q-btn flat type="submit" color="primary" >Submit</q-btn>
+            <q-btn flat type="submit" color="primary">Submit</q-btn>
             <q-btn flat type="reset">Reset</q-btn>
-            <q-btn flat type="button" @click="cancelOp" >Cancel</q-btn>
+            <q-btn flat type="button" @click="cancelOp">Cancel</q-btn>
           </q-card-actions>
         </q-card>
       </q-form>
@@ -208,6 +210,4 @@ onMounted(async ()=> {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

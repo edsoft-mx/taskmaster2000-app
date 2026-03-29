@@ -41,8 +41,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shareTimeline: (config) => ipcRenderer.send('share-timeline', config),
   openExternalLink: (event, url) => ipcRenderer.send('open-external-link', url),
   notifyMessage: (event, message) => ipcRenderer.send('notify-message', message),
-  getSharedTimeline: (callback) => ipcRenderer.invoke('function:getSharedTimeline'),
-  getConfiguration: (callback) => ipcRenderer.invoke('function:getConfiguration'),
+  getSharedTimeline: () => ipcRenderer.invoke('function:getSharedTimeline'),
+  getConfiguration: () => ipcRenderer.invoke('function:getConfiguration'),
   getLocalNote: (notePath)=>ipcRenderer.invoke('function:getLocalNote', notePath),
   onRefresh: (callback) => ipcRenderer.on('updateBoard', () => callback()),
   onTaskUpdate: (callback) => ipcRenderer.on('on-task-update', (_event, idTask, idProject, op) => callback(idTask, idProject, op)),
@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pomodoroTimerClick: (task) => ipcRenderer.send('pomodoro-timer-click', task),
   pomodoroMenuClick: (tasks) => ipcRenderer.send('pomodoro-menu-click', tasks),
   pomodoroTick: (callback) => ipcRenderer.on('pomodoro-tick', (_event, pomodoroMsg) => callback(pomodoroMsg)),
+  pomodoroLabelsPosition: (callback) => ipcRenderer.on('pomodoro-labels-position', (_event, pomodoroLabels) => callback(pomodoroLabels)),
   //onGoToHome: (callback) => ipcRenderer.on('goToHome', () => callback()),
   //onGoToAbout: (callback) => ipcRenderer.on('goToAbout', () => callback())
 })

@@ -4,7 +4,7 @@ import TMEpic from "components/tmEpic.vue";
 import TMTask from "components/tmTask.vue";
 import {callApi} from "src/common";
 import { useUISessionStore } from 'stores/ui_state';
-import {computed, ref, watch} from 'vue'
+import {computed, ref } from 'vue'
 
 
 defineOptions({
@@ -65,10 +65,10 @@ const events = defineEmits([
   'drop'
 ])
 
-let rootElements = computed(()=>{
-  let result = props.epics ? props.epics : []
-  return result.concat(props.tasks)
-})
+// let rootElements = computed(()=>{
+//   let result = props.epics ? props.epics : []
+//   return result.concat(props.tasks)
+// })
 
 let epicsIndexed = computed(()=>{
   // console.log('Computing epics...')
@@ -193,15 +193,15 @@ function dragLeaveStateColumn(event){
   return isValid
 }
 
-function copyTaskItems(aList, thisId){
-  let result = []
-  for (let item of aList){
-    if (item.idTask !== thisId){
-      result.push(item)
-    }
-  }
-  return result
-}
+// function copyTaskItems(aList, thisId){
+//   let result = []
+//   for (let item of aList){
+//     if (item.idTask !== thisId){
+//       result.push(item)
+//     }
+//   }
+//   return result
+// }
 
 async function dropOverStateColumn(event){
   if (event.preventDefault) {
@@ -317,39 +317,39 @@ function dragEpic(event, epic){
   dragInitialState = `main_${epic.state.replace(' ','_')}`
 }
 
-function dragOverTask2(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  //dummy()
-  console.log(event.currentTarget.id)
-  let isValid = dropTargetIsValid2(event.currentTarget.id)
-  if (isValid){
-    //console.log(`dragover: ${event.currentTarget.id}`)
-    let dropTarget = document.getElementById(event.currentTarget.id)
-    //dropTarget.style.borderWidth="2px"
-    dropTarget.style.borderTopStyle="dashed"
-    dropTarget.style.borderTopColor="red"
-    // dropTarget.style.borderStyle="dashed"
-  }
-  return isValid
-}
-
-function dragLeaveTask2(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  let isValid = dropTargetIsValid2(event.currentTarget.id)
-  if (isValid){
-    //console.log(`dragleave: ${event.currentTarget.id}`)
-    let dropTarget = document.getElementById(event.currentTarget.id)
-    //dropTarget.style.borderWidth="0px"
-    dropTarget.style.borderTopStyle="solid"
-    dropTarget.style.borderTopColor="gray"
-    //dropTarget.style.borderColor="black"
-  }
-  return isValid
-}
+// function dragOverTask2(event){
+//   if (event.preventDefault) {
+//     event.preventDefault();
+//   }
+//   //dummy()
+//   console.log(event.currentTarget.id)
+//   let isValid = dropTargetIsValid2(event.currentTarget.id)
+//   if (isValid){
+//     //console.log(`dragover: ${event.currentTarget.id}`)
+//     let dropTarget = document.getElementById(event.currentTarget.id)
+//     //dropTarget.style.borderWidth="2px"
+//     dropTarget.style.borderTopStyle="dashed"
+//     dropTarget.style.borderTopColor="red"
+//     // dropTarget.style.borderStyle="dashed"
+//   }
+//   return isValid
+// }
+//
+// function dragLeaveTask2(event){
+//   if (event.preventDefault) {
+//     event.preventDefault();
+//   }
+//   let isValid = dropTargetIsValid2(event.currentTarget.id)
+//   if (isValid){
+//     //console.log(`dragleave: ${event.currentTarget.id}`)
+//     let dropTarget = document.getElementById(event.currentTarget.id)
+//     //dropTarget.style.borderWidth="0px"
+//     dropTarget.style.borderTopStyle="solid"
+//     dropTarget.style.borderTopColor="gray"
+//     //dropTarget.style.borderColor="black"
+//   }
+//   return isValid
+// }
 
 function dropTargetIsValid(id, data=null){
   //console.log(`drop1: id != dragInitialState: ${id} != ${dragInitialState}`)
@@ -363,83 +363,83 @@ function dropTargetIsValid(id, data=null){
   return (id.startsWith("main_") || id.startsWith("task_") || id.startsWith("epic_") ) && differentState
 }
 
-function dropTargetIsValid2(object_id, data=null){
-  let validId = /(task-card-\d+)|(subtask-card-\d+-\d+)/
-  let match = validId.exec(object_id)
-  if (data==null) {
-    return match != null
-  }
-  else {
-    return object_id !== data.id && match != null
-  }
-}
+// function dropTargetIsValid2(object_id, data=null){
+//   let validId = /(task-card-\d+)|(subtask-card-\d+-\d+)/
+//   let match = validId.exec(object_id)
+//   if (data==null) {
+//     return match != null
+//   }
+//   else {
+//     return object_id !== data.id && match != null
+//   }
+// }
 
-function getSiblingTasksInfo(dropTargetId){
-  let sameStateTask
-  let targetIndex=-1
-  const re_mainTask= /^task-card-(\d+)/
-  let targetTask = boardData.allTasksMap.get(dropTargetId)
-  console.log('TargetTask', targetTask)
-  let matchMainTask = re_mainTask.exec(dropTargetId)
-  if (matchMainTask){
-    //console.log('por aca', matchMainTask)
-    sameStateTask = boardData.stateMap.get(targetTask.state)
-    targetIndex = sameStateTask.findIndex(task => task.idTask === Number(matchMainTask[1]))
-    console.log('Same lane tasks:')
-    console.log(sameStateTask)
-    // for (let t2 of sameStateTask) {
-    //   console.log(t2.taskId)
-    // }
-  }
-  else{
-    const re_subTask= /^subtask-card-(\d+)-(\d+)/
-    let matchSubTask = re_subTask.exec(dropTargetId)
-    let parentTask = boardData.allTasksMap.get(`task-card-${matchSubTask[1]}`)
-    console.log('Parent task:',parentTask)
-    sameStateTask = []
-    let n=0
-    parentTask.subTasks.forEach(subTask => {
-      if (subTask.state === targetTask.state) {
-        sameStateTask.push(subTask)
-        if(subTask.idTask === Number(matchSubTask[2])){
-          targetIndex=n
-        }
-      }
-      n++
-    })
-    console.log('Same lane tasks:')
-    console.log(sameStateTask)
-  }
-  return {
-    siblingTasks: sameStateTask,
-    targetIndex: targetIndex,
-  }
-}
+// function getSiblingTasksInfo(dropTargetId){
+//   let sameStateTask
+//   let targetIndex=-1
+//   const re_mainTask= /^task-card-(\d+)/
+//   let targetTask = boardData.allTasksMap.get(dropTargetId)
+//   console.log('TargetTask', targetTask)
+//   let matchMainTask = re_mainTask.exec(dropTargetId)
+//   if (matchMainTask){
+//     //console.log('por aca', matchMainTask)
+//     sameStateTask = boardData.stateMap.get(targetTask.state)
+//     targetIndex = sameStateTask.findIndex(task => task.idTask === Number(matchMainTask[1]))
+//     console.log('Same lane tasks:')
+//     console.log(sameStateTask)
+//     // for (let t2 of sameStateTask) {
+//     //   console.log(t2.taskId)
+//     // }
+//   }
+//   else{
+//     const re_subTask= /^subtask-card-(\d+)-(\d+)/
+//     let matchSubTask = re_subTask.exec(dropTargetId)
+//     let parentTask = boardData.allTasksMap.get(`task-card-${matchSubTask[1]}`)
+//     console.log('Parent task:',parentTask)
+//     sameStateTask = []
+//     let n=0
+//     parentTask.subTasks.forEach(subTask => {
+//       if (subTask.state === targetTask.state) {
+//         sameStateTask.push(subTask)
+//         if(subTask.idTask === Number(matchSubTask[2])){
+//           targetIndex=n
+//         }
+//       }
+//       n++
+//     })
+//     console.log('Same lane tasks:')
+//     console.log(sameStateTask)
+//   }
+//   return {
+//     siblingTasks: sameStateTask,
+//     targetIndex: targetIndex,
+//   }
+// }
 
-async function dropTask2(event){
-  if (event.preventDefault) {
-    event.preventDefault();
-  }
-  //dummy()
-  console.log('dropTask2')
-  let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'));
-  let isValid = dropTargetIsValid2(event.currentTarget.id, data)
-  let dropTarget = document.getElementById(event.currentTarget.id)
-
-  if (isValid) {
-    //data = {id, state, project, parentTask}
-    console.log(`DROP-sort task: ${data.id} -> ${dropTarget.id}`)
-    let targetData = getSiblingTasksInfo(dropTarget.id)
-    await callApi('POST', `user/boards/${props.idBoard}/tasks/${data.id}/insert_before`, targetData)
-    let scroll = window.scrollY
-    await getData()
-    window.scroll(0, scroll)
-  }
-  else {
-    dropTarget.style.borderTopStyle = "solid"
-    dropTarget.style.borderTopColor = "gray"
-  }
-}
+// async function dropTask2(event){
+//   if (event.preventDefault) {
+//     event.preventDefault();
+//   }
+//   //dummy()
+//   console.log('dropTask2')
+//   let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'));
+//   let isValid = dropTargetIsValid2(event.currentTarget.id, data)
+//   let dropTarget = document.getElementById(event.currentTarget.id)
+//
+//   if (isValid) {
+//     //data = {id, state, project, parentTask}
+//     console.log(`DROP-sort task: ${data.id} -> ${dropTarget.id}`)
+//     let targetData = getSiblingTasksInfo(dropTarget.id)
+//     await callApi('POST', `user/boards/${props.idBoard}/tasks/${data.id}/insert_before`, targetData)
+//     let scroll = window.scrollY
+//     await getData()
+//     window.scroll(0, scroll)
+//   }
+//   else {
+//     dropTarget.style.borderTopStyle = "solid"
+//     dropTarget.style.borderTopColor = "gray"
+//   }
+// }
 
 function showMore(state){
   let number = stateDisplayLimit.value.get(state.state)

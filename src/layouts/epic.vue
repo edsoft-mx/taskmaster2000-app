@@ -2,7 +2,7 @@
 defineOptions({
   name: 'tm-epic'
 });
-import { ref, reactive, defineProps, watch, inject, computed, onMounted } from 'vue'
+import { ref, reactive, defineProps, computed, onMounted } from 'vue'
 import {callApi, store_configuration} from 'src/common'
 
 const props = defineProps({
@@ -38,7 +38,7 @@ const formData = reactive({
   epicRef: null,
 })
 
-const formOp = ref("")
+// const formOp = ref("")
 
 const boardProjects = ref([])
 const boardStates = ref([])
@@ -103,19 +103,19 @@ async function getData(){
   document.title = title
 }
 
-function assignValueFromOptions(object, options, firstOneNew=false){
-  if (formOp.value === "edit" || !firstOneNew){
-    for (let i = 0; i < options.length; i++) {
-      // console.log(options[i])
-      if (options[i].value === object){
-        return options[i]
-      }
-    }
-  }
-  else {
-    return options[0]
-  }
-}
+// function assignValueFromOptions(object, options, firstOneNew=false){
+//   if (formOp.value === "edit" || !firstOneNew){
+//     for (let i = 0; i < options.length; i++) {
+//       // console.log(options[i])
+//       if (options[i].value === object){
+//         return options[i]
+//       }
+//     }
+//   }
+//   else {
+//     return options[0]
+//   }
+// }
 
 function addSubtaskEditor() {
   formData.inEdition = true
@@ -125,7 +125,7 @@ async function addSubtask(){
   // dummy()
   console.log(formData.project.value)
   let stcpy = (' ' + formData.newTaskTitle).slice(1)
-  let project = boardData.projectsMap.get(formData.project.value)
+  // let project = boardData.projectsMap.get(formData.project.value)
   if (stcpy) {
     const searchParams = new URLSearchParams('');
     searchParams.append('text', stcpy)

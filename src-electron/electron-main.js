@@ -1,12 +1,14 @@
-import { app, BrowserWindow, session, ipcMain, protocol, net, Notification, Menu, shell } from 'electron'
-const log = require('electron-log');
-import path from 'path'
+import { app, BrowserWindow, ipcMain, protocol, Notification, Menu, shell } from 'electron'
+import log from 'electron-log'
+import path, {dirname} from 'path'
 import os from 'os'
 import fs from 'fs'
-//import url from "url";
-//import {pomodoroOnTimerClick, setAppConfig, pomodoroRehydrate,  addPomodoroTickSubscriber, showPomodoroMenu, setMessagerObject, setCurrentUser} from './pomodoro';
 import {setPomodoroWatcher, addPomodoroTickSubscriber, showPomodoroMenu, pomodoroOnTimerClick} from './pomodoro';
+import {fileURLToPath} from "node:url";
+import grpc from '@grpc/grpc-js'
+import protoLoader from '@grpc/proto-loader'
 
+const currentDir = fileURLToPath(new URL('.', import.meta.url))
 log.transports.file.level = 'info';
 log.transports.file.maxSize = 1024 * 1024 * 5; // 5MB
 log.transports.console.level = 'debug';
@@ -15,13 +17,14 @@ console.log = log.log;
 console.error = log.error;
 console.warn = log.warn;
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 let PROTO_PATH = path.resolve(__dirname, '..', 'taskmaster2000.proto');
 console.log('PROTO_PATH', PROTO_PATH);
 // needed in case process is undefined under Linux
 const platform = process.platform || os.platform()
-const { pathToFileURL } = require('url')
-const grpc = require('@grpc/grpc-js')
-const protoLoader = require('@grpc/proto-loader')
+// import { pathToFileURL } from 'url'
+
 const packageDefinition = protoLoader.loadSync(PROTO_PATH,
   {keepCase: true, longs: String, enums: String, defaults: true, oneofs: true});
 let grpcProto = grpc.loadPackageDefinition(packageDefinition).msgs;
@@ -30,16 +33,17 @@ let grpcTaskClient = null
 let currentUser = "";
 let configuration = null
 
-const readline = require('readline');
-const { Readable } = require('stream');
+// import readline from 'readline'
+// import { Readable } from 'stream'
 
 let mainWindow = null
 let pomodoroWindow = null
+let pomodoroLabels = 'bottom';
 let toolWindows = new Map()
 let taskWindows = new Map()
 let epicWindows = new Map()
 let timeLineData = null;
-const hostname = os.hostname();
+// const hostname = os.hostname();
 
 function getCookie(event, name) {
   // session.defaultSession.cookies.get({name: name}).then((error, cookies) => {
@@ -51,7 +55,7 @@ function getCookie(event, name) {
   }
 }
 
-function getConfiguration(event){
+function getConfiguration(){
   if (!configuration){
     let basePath = app.getPath('userData')
     const configFile = path.join(basePath, 'config.json')
@@ -131,6 +135,7 @@ async function createMainWindow () {
   /**
    * Initial window options
    */
+  console.log('Creating main window...')
   let mainWindowWidth = 1200
   let mainWindowHeight = 800
   if (configuration.mainWindowWidth) {
@@ -147,11 +152,25 @@ async function createMainWindow () {
     webPreferences: {
       contextIsolation: true,
       // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-      preload: path.resolve(__dirname, process.env.QUASAR_ELECTRON_PRELOAD)
-    }
+      // preload: path.resolve(__dirname, process.env.QUASAR_ELECTRON_PRELOAD)
+      preload: path.resolve(
+        currentDir,
+        path.join(
+          process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+          'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+        ),
+      ),
+    },
   })
   console.log(`Loading main window @ ${process.env.APP_URL}`)
-  await mainWindow.loadURL(process.env.APP_URL+ `?page=MainLayout`)
+
+  //await mainWindow.loadURL(process.env.APP_URL+ `?page=MainLayout`)
+  if (process.env.DEV) {
+    await mainWindow.loadURL(process.env.APP_URL + `?page=MainLayout`)
+  } else {
+    await mainWindow.loadFile('index.html', {query: {page: 'MainLayout'}})
+  }
+
   const menu = Menu.buildFromTemplate(getMenu())
   Menu.setApplicationMenu(menu)
 
@@ -168,9 +187,11 @@ async function createMainWindow () {
   mainWindow.on('closed', () => {
     if (platform !== 'darwin') {
       for (const [key, aWindow] of taskWindows.entries()) {
+        console.log(`Closing task window ${key}`)
         aWindow.close()
       }
       for (const [key, aWindow] of toolWindows.entries()) {
+        console.log(`Closing tool window ${key}`)
         aWindow.close()
       }
     }
@@ -182,7 +203,7 @@ async function createMainWindow () {
   })
 }
 
-function openWindow(page, params, options={}){
+async function openWindow(page, params, options={}){
   if (params){
     params = `&${params}`
   }
@@ -213,14 +234,29 @@ function openWindow(page, params, options={}){
       webPreferences: {
         contextIsolation: true,
         // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-        preload: path.resolve(__dirname, process.env.QUASAR_ELECTRON_PRELOAD)
-      }
+        preload: path.resolve(
+          currentDir,
+          path.join(
+            process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+            'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+          ),
+        ),
+      },
     }
     for (let key in options) {
       defaultOptions[key] = options[key]
     }
     let newWindow = new BrowserWindow(defaultOptions)
-    newWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    //newWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    if (process.env.DEV) {
+      console.log(`Loading ${page} window @ ${process.env.APP_URL}`)
+      await newWindow.loadURL(process.env.APP_URL+ `?page=${page}${params}`)
+    } else {
+      let p2 = Object.fromEntries(new URLSearchParams(params));
+      p2.page = page;
+      await newWindow.loadFile('index.html', {query: p2})
+    }
+
     toolWindows.set(page, newWindow)
     newWindow.on('closed', () => {
       if (page==='timeEntry'){
@@ -242,7 +278,7 @@ function openWindow(page, params, options={}){
   }
 }
 
-function openTaskWindow(page, params){
+async function openTaskWindow(page, params){
   if (params){
     params = `&${params}`
   }
@@ -259,10 +295,22 @@ function openTaskWindow(page, params){
       webPreferences: {
         contextIsolation: true,
         // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-        preload: path.resolve(__dirname, process.env.QUASAR_ELECTRON_PRELOAD)
-      }
+        preload: path.resolve(
+          currentDir,
+          path.join(
+            process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+            'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+          ),
+        ),
+      },
     })
-    taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    //taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    if (process.env.DEV) {
+      await taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    } else {
+      await taskWindow.loadFile('index.html', {query: {page: `${page}${params}`}})
+    }
+
     taskWindows.set(`${page}${params}`, taskWindow)
     taskWindow.on('closed', () => {
       // if (mainWindow){
@@ -278,7 +326,7 @@ function openTaskWindow(page, params){
   }
 }
 
-function openEpicWindow(page, params){
+async function openEpicWindow(page, params){
   if (params){
     params = `&${params}`
   }
@@ -295,10 +343,21 @@ function openEpicWindow(page, params){
       webPreferences: {
         contextIsolation: true,
         // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-        preload: path.resolve(__dirname, process.env.QUASAR_ELECTRON_PRELOAD)
-      }
+        preload: path.resolve(
+          currentDir,
+          path.join(
+            process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+            'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+          ),
+        ),
+      },
     })
-    epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    //epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    if (process.env.DEV) {
+      await epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+    } else {
+      await epicWindow.loadFile('index.html', {query: {page: `${page}${params}`}})
+    }
     epicWindows.set(`${page}${params}`, epicWindow)
     epicWindow.on('closed', () => {
       // if (mainWindow){
@@ -318,35 +377,72 @@ function openTimeline(){
   openWindow('timeline')
 }
 
-function openPomodoroTimerWindow() {
-  // let windowWidth = 800
-  // let windowHeight = 600;
-  // if (configuration[`PomodoroWindowWidth`]){
-  //   windowWidth = configuration[`PomodoroWindowWidth`]
-  // }
-  // if (configuration[`PomodoroWindowHeight`]){
-  //   windowHeight = configuration[`PomodoroWindowHeight`]
-  // }
-  pomodoroWindow = openWindow('pomodoroTimer', null, {
+function setPomodoroLabels(position){
+  pomodoroLabels = position
+  saveConfiguration({pomodoroLabels: position})
+  if (pomodoroWindow){
+    pomodoroWindow.webContents.send('pomodoro-labels-position', pomodoroLabels)
+  }
+}
+
+function getMenuPomodoroTimer() {
+  return [
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          type: 'submenu',
+          label: 'Pomodoro Labels position',
+          submenu: [
+            {
+              type: 'radio',
+              label: 'Bottom',
+              checked: pomodoroLabels==='bottom',
+              click: () => setPomodoroLabels('bottom'),
+            },
+            { type: 'radio', label: 'Right', checked: pomodoroLabels==='right',
+              click: () => setPomodoroLabels('right') },
+          ],
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+  ]
+}
+
+async function openPomodoroTimerWindow() {
+  pomodoroWindow = await openWindow('pomodoroTimer', null, {
     skipTaskbar: true,
     title: 'Pomodoro Timer',
-    //width: windowWidth,
-    //height: windowHeight,
   })
-  // pomodoroWindow.on('resize', ()=>{
-  //   const [width, height] = pomodoroWindow.getSize()
-  //   let size = {}
-  //   size[`PomodoroWindowWidth`] = width
-  //   size[`PomodoroWindowHeight`] = height
-  //   saveConfiguration(size)
-  // })
-  //pomodoroWindow.webContents.openDevTools()
   addPomodoroTickSubscriber((message)=>{
     pomodoroWindow.webContents.send('pomodoro-tick', message)
   })
-  // pomodoroWindow.setMenu(null)
-  pomodoroWindow.setAlwaysOnTop(true, 'screen');
-  return undefined;
+  let menuPomodoro = Menu.buildFromTemplate(getMenuPomodoroTimer())
+  pomodoroWindow.setMenu(menuPomodoro)
+  pomodoroWindow.on('close', () => {
+    pomodoroWindow = null
+  })
 }
 
 //app.whenReady().then(createWindow)
@@ -386,7 +482,7 @@ protocol.registerSchemesAsPrivileged([
 
 
 async function initGRPC(){
-  let configuration = await getConfiguration(null)
+  let configuration = await getConfiguration()
   grpcPomodoroClient = new grpcProto.Pomodoro(configuration.messengerHostPort, grpc.credentials.createInsecure());
   grpcTaskClient  = new grpcProto.TaskUpdatedNotifier(configuration.messengerHostPort, grpc.credentials.createInsecure());
 }
@@ -443,6 +539,9 @@ async function initHandlers(){
 }
 
 app.whenReady().then(async () => {
+  // if (process.platform === 'linux') {
+  //   app.set (path.join(__dirname, 'icons/icon.png'))
+  // }
   await initGRPC()
   await initHandlers()
   await createMainWindow()
@@ -465,9 +564,60 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
   }
 });
 
+// function taskWatcherStreamingCall(client, user) {
+//   return new Promise((resolve, reject) => {
+//     console.log('taskWatcherStreamingCall')
+//     const call = client.SubscribeTaskWatcher({user: user})
+//     call.on('data', async (updatedTask) => {
+//       console.log('Received updated task')
+//       console.log(updatedTask)
+//       //console.log(task)
+//       mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
+//     });
+//     call.on('status', status => {
+//       console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);
+//       resolve();
+//     });
+//     call.on('error', () => {
+//       // Ignore error event
+//     });
+//     //call.end();
+//   });
+// }
+//
+// function epicWatcherStreamingCall(client, user) {
+//   return new Promise((resolve, reject) => {
+//     console.log('epicWatcherStreamingCall')
+//     const call = client.SubscribeEpicWatcher({user: user})
+//     call.on('data', async (updatedEpic) => {
+//       console.log('Received updated epic')
+//       console.log(updatedEpic)
+//       //console.log(task)
+//       mainWindow.webContents.send('on-epic-update', updatedEpic.id_epic, updatedEpic.id_project, updatedEpic.op)
+//     });
+//     call.on('status', status => {
+//       console.log(`SubscribeEpicWatcher got = ${grpc.status[status.code]}`);
+//       resolve();
+//     });
+//     call.on('error', () => {
+//       // Ignore error event
+//     });
+//     //call.end();
+//   });
+// }
+
 function taskWatcherStreamingCall(client, user) {
-  return new Promise((resolve, reject) => {
-    console.log('taskWatcherStreamingCall')
+  const MAX_DELAY = 30000
+  let delay = 1000
+  let timeOutHandle = null
+
+  function connect() {
+    if (timeOutHandle) {
+      clearTimeout(timeOutHandle)
+      timeOutHandle = null
+    }
+    delay = 1000
+    console.log('connecting taskWatcherStreamingCall...')
     const call = client.SubscribeTaskWatcher({user: user})
     call.on('data', async (updatedTask) => {
       console.log('Received updated task')
@@ -475,20 +625,41 @@ function taskWatcherStreamingCall(client, user) {
       //console.log(task)
       mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
     });
-    call.on('status', status => {
+    call.on('error', status => {
       console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);
-      resolve();
+      if (timeOutHandle) {
+        clearTimeout(timeOutHandle)
+        timeOutHandle = null
+      }
+      console.log(`taskWatcherStreamingCall error: ${status.message}, reconnecting in ${delay}ms`)
+      timeOutHandle = setTimeout(connect, delay)
+      delay = Math.min(delay * 2, MAX_DELAY)
     });
-    call.on('error', () => {
-      // Ignore error event
-    });
-    //call.end();
-  });
+    call.on('end', () => {
+      if (timeOutHandle) {
+        clearTimeout(timeOutHandle)
+         timeOutHandle = null
+      }
+      console.log(`taskWatcherStreamingCall stream ended, reconnecting in ${delay}ms`)
+      timeOutHandle = setTimeout(connect, delay)
+      delay = Math.min(delay * 2, MAX_DELAY)
+    })
+  }
+  connect()
 }
 
 function epicWatcherStreamingCall(client, user) {
-  return new Promise((resolve, reject) => {
-    console.log('epicWatcherStreamingCall')
+  const MAX_DELAY = 30000
+  let delay = 1000
+  let timeOutHandle = null
+
+  function connect() {
+    if (timeOutHandle) {
+      clearTimeout(timeOutHandle)
+      timeOutHandle = null
+    }
+    delay = 1000
+    console.log('conecting epicWatcherStreamingCall...')
     const call = client.SubscribeEpicWatcher({user: user})
     call.on('data', async (updatedEpic) => {
       console.log('Received updated epic')
@@ -496,13 +667,25 @@ function epicWatcherStreamingCall(client, user) {
       //console.log(task)
       mainWindow.webContents.send('on-epic-update', updatedEpic.id_epic, updatedEpic.id_project, updatedEpic.op)
     });
-    call.on('status', status => {
+    call.on('error', status => {
       console.log(`SubscribeEpicWatcher got = ${grpc.status[status.code]}`);
-      resolve();
+      if (timeOutHandle) {
+        clearTimeout(timeOutHandle)
+        timeOutHandle = null
+      }
+      console.log(`SubscribeEpicWatcher error: ${status.message}, reconnecting in ${delay}ms`)
+      timeOutHandle = setTimeout(connect, delay)
+      delay = Math.min(delay * 2, MAX_DELAY)
     });
-    call.on('error', () => {
-      // Ignore error event
+    call.on('end', () => {
+      if (timeOutHandle) {
+        clearTimeout(timeOutHandle)
+        timeOutHandle = null
+      }
+      console.log(`SubscribeEpicWatcher stream ended, reconnecting in ${delay}ms`)
+      timeOutHandle = setTimeout(connect, delay)
+      delay = Math.min(delay * 2, MAX_DELAY)
     });
-    //call.end();
-  });
+  }
+  connect()
 }

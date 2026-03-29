@@ -1,17 +1,17 @@
 <script setup>
 defineOptions({
-  name: 'tm-admin-users'
-});
+  name: 'tm-admin-users',
+})
 
-import {onMounted, ref} from 'vue'
-import {callApi, store_configuration} from 'src/common'
+import { onMounted, ref } from 'vue'
+import { callApi, store_configuration } from 'src/common'
 
-const userId= ref(0)
-const username= ref("")
-const firstName= ref("")
-const lastName= ref("")
-const active= ref(true)
-const password= ref("")
+const userId = ref(0)
+const username = ref('')
+const firstName = ref('')
+const lastName = ref('')
+const active = ref(true)
+const password = ref('')
 
 const columns = [
   {
@@ -19,35 +19,35 @@ const columns = [
     required: true,
     label: 'Id',
     align: 'left',
-    field: 'id'
+    field: 'id',
   },
   {
     name: 'active',
     required: true,
     label: 'Active',
     align: 'center',
-    field: 'active'
+    field: 'active',
   },
   {
     name: 'username',
     required: true,
     label: 'Username',
     align: 'left',
-    field: 'username'
+    field: 'username',
   },
   {
     name: 'first_name',
     required: false,
     label: 'First Name',
     align: 'left',
-    field: 'first_name'
+    field: 'first_name',
   },
   {
     name: 'last_name',
     required: false,
     label: 'Last Name',
     align: 'left',
-    field: 'last_name'
+    field: 'last_name',
   },
   {
     name: 'password',
@@ -55,29 +55,29 @@ const columns = [
     label: 'Password',
     align: 'left',
     field: 'password',
-    format: (val, row) => '*'.repeat(val.length),
+    format: (val) => '*'.repeat(val.length),
   },
 ]
 
 const rows = ref([])
 const formStyle = ref({
-  left: "20px",
-  top: "20px",
-  position: "absolute",
-  width: "500px",
-  display: "none"
+  left: '20px',
+  top: '20px',
+  position: 'absolute',
+  width: '500px',
+  display: 'none',
 })
-const formOp = ref("")
+const formOp = ref('')
 
-async function getData()  {
+async function getData() {
   let result = await callApi('GET', 'users')
-  for (let r of result){
+  for (let r of result) {
     rows.value.push(r)
   }
   window.document.title = 'Manage Users'
 }
 
-function clearUser(){
+function clearUser() {
   username.value = ''
   firstName.value = ''
   lastName.value = ''
@@ -85,28 +85,28 @@ function clearUser(){
   password.value = ''
 }
 
-function showForm(){
+function showForm() {
   const parent = document.getElementById('userMainContainer')
   const divFormUser = document.getElementById('divFormUser')
-  const x = (parent.offsetWidth - 500) / 2;
+  const x = (parent.offsetWidth - 500) / 2
   formStyle.value.left = x + 'px'
   formStyle.value.display = 'block'
   const idEd = divFormUser.getElementsByTagName('input')[0].id
-  setTimeout(()=>{
+  setTimeout(() => {
     console.log(idEd)
-    document.getElementById(idEd).focus();
+    document.getElementById(idEd).focus()
   }, 500)
-  console.log("show time")
+  console.log('show time')
 }
 
-function newUser(){
-  formOp.value = "add";
+function newUser() {
+  formOp.value = 'add'
   clearUser()
   showForm()
 }
 
-function editUser(event, row, index){
-  formOp.value = "edit";
+function editUser(event, row) {
+  formOp.value = 'edit'
   showForm()
   username.value = row.username
   firstName.value = row.first_name
@@ -117,12 +117,14 @@ function editUser(event, row, index){
   console.log(row)
 }
 
-function cancelOp(){
-  formStyle.value.display = 'none';
+function cancelOp() {
+  formStyle.value.display = 'none'
 }
 
 async function submitUser() {
-  console.log(`submit (${formOp.value}): user (${userId.value}, ${username.value}, ${password.value}, ${firstName.value}, ${lastName.value}, ${active.value})`)
+  console.log(
+    `submit (${formOp.value}): user (${userId.value}, ${username.value}, ${password.value}, ${firstName.value}, ${lastName.value}, ${active.value})`,
+  )
   const data = {
     username: username.value,
     password: password.value,
@@ -130,72 +132,72 @@ async function submitUser() {
     lastName: lastName.value,
     active: active.value,
   }
+  let newUser
   switch (formOp.value) {
-    case "add":
-      const newUser = await callApi("POST", "users", data);
-      console.log(newUser);
-      rows.value.push(newUser);
+    case 'add':
+      newUser = await callApi('POST', 'users', data)
+      console.log(newUser)
+      rows.value.push(newUser)
       break
-    case "edit":
-      callApi("POST", `users/${userId.value}`, data)
+    case 'edit':
+      await callApi('POST', `users/${userId.value}`, data)
       break
   }
 }
 
-onMounted(async ()=> {
+onMounted(async () => {
   console.log('mounted')
   let config = await window.electronAPI.getConfiguration()
   if (config) {
     console.log('Loaded configuration')
     //console.log(config)
-    if (!config){
+    if (!config) {
       return
     }
     store_configuration(config)
   }
   await getData()
 })
-
 </script>
 
 <template>
-  <div id="userMainContainer" style="position: relative;">
-  <div class="q-pa-md">
-    <q-table
+  <div id="userMainContainer" style="position: relative">
+    <div class="q-pa-md">
+      <q-table
         class="my-sticky-header-table"
-        flat bordered
+        flat
+        bordered
         title="Users"
         :rows="rows"
         :columns="columns"
         row-key="id"
         @row-dblclick="editUser"
-    />
-  </div>
-  <div style="text-align: right; padding-right: 10px">
-    <q-btn round color="primary" fab hint="New User" @click="newUser" icon="person_add_alt" />
-  </div>
-  <div :style=formStyle id="divFormUser">
-    <q-form @submit="submitUser" @reset="clearUser"> >
-    <q-card style="min-width: 350px">
-      <q-card-section>
-        <q-input v-model="username" label="Username" id="edUsername" />
-        <q-input v-model="password" type="password"  label="Password" />
-        <q-input v-model="firstName" label="First Name" />
-        <q-input v-model="lastName" label="Last Name" />
-        <q-checkbox v-model="active" label="Active" />
-      </q-card-section>
-      <q-separator />
-      <q-card-actions align="right">
-        <q-btn flat type="submit" color="primary" >Submit</q-btn>
-        <q-btn flat type="reset">Reset</q-btn>
-        <q-btn flat type="button" @click="cancelOp" >Cancel</q-btn>
-      </q-card-actions>
-    </q-card>
-    </q-form>
-  </div>
+      />
+    </div>
+    <div style="text-align: right; padding-right: 10px">
+      <q-btn round color="primary" fab hint="New User" @click="newUser" icon="person_add_alt" />
+    </div>
+    <div :style="formStyle" id="divFormUser">
+      <q-form @submit="submitUser" @reset="clearUser">
+        >
+        <q-card style="min-width: 350px">
+          <q-card-section>
+            <q-input v-model="username" label="Username" id="edUsername" />
+            <q-input v-model="password" type="password" label="Password" />
+            <q-input v-model="firstName" label="First Name" />
+            <q-input v-model="lastName" label="Last Name" />
+            <q-checkbox v-model="active" label="Active" />
+          </q-card-section>
+          <q-separator />
+          <q-card-actions align="right">
+            <q-btn flat type="submit" color="primary">Submit</q-btn>
+            <q-btn flat type="reset">Reset</q-btn>
+            <q-btn flat type="button" @click="cancelOp">Cancel</q-btn>
+          </q-card-actions>
+        </q-card>
+      </q-form>
+    </div>
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

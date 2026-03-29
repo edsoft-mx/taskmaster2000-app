@@ -3,23 +3,12 @@ defineOptions({
   name: 'TMTimeLine',
 })
 
-import {
-  ref,
-  reactive,
-  defineProps,
-  watch,
-  inject,
-  onBeforeMount,
-  onMounted,
-  onUnmounted,
-  useTemplateRef,
-  nextTick, triggerRef
-} from 'vue'
-import {callApi, store_configuration, Timeline} from 'src/common'
+import { ref, defineProps, watch, onMounted, triggerRef } from 'vue'
+import { callApi, store_configuration, Timeline } from 'src/common'
 
-import {
-  BoardTask,
-} from 'src/commonObjects'
+// import {
+//   BoardTask,
+// } from 'src/commonObjects'
 
 const props = defineProps({
   startDate: {
@@ -45,127 +34,147 @@ const props = defineProps({
   uiId: {
     type: String,
     required: true,
-  }
+  },
 })
 
-const events = defineEmits([
-  'select',
-])
-
+const events = defineEmits(['select'])
 
 // let canvasRefs = useTemplateRef('canvases')
 
-let inited=false
+//let inited=false
 let counterCurrentTimeIntoView = 0
-let mountedFlag = false
-let mountedDblClickFlag = false
+// let mountedFlag = false
+// let mountedDblClickFlag = false
 let timelineObject = ref(null)
 let selectedInterval = ref(0)
+let sharedEvents = null
 //let allProjects = null
 
-async function getData(dataDateRange=null) {
+async function getData() {
   console.log('timeline')
   //allProjects = await callApi('GET', 'user/projects')
   let currentWeek
   let canvas = document.getElementById('canvasTimeline')
   // let meetings
-  currentWeek = await callApi('GET', `user/spent_time/date_range/${props.startDate}/${props.endDate}`)
+  currentWeek = await callApi(
+    'GET',
+    `user/spent_time/date_range/${props.startDate}/${props.endDate}`,
+  )
+  const timeline = new Timeline(
+    currentWeek,
+    canvas ? canvas.clientHeight : 2300,
+    props.includeBreaks,
+    props.onlyBilled,
+  )
+  sharedEvents = timeline.events
+  // console.log('timeline')
+  // console.log(timeline)
   timelineObject.value = new Timeline(
     currentWeek,
     canvas ? canvas.clientHeight : 2300,
     props.includeBreaks,
-    props.onlyBilled
+    props.onlyBilled,
   )
-  if (props.pomodoroData != null && props.pomodoroData.timerActive){
+  if (props.pomodoroData != null && props.pomodoroData.timerActive) {
     timelineObject.value.startTentativePeriod(props.pomodoroData)
   }
   console.log('Done getting weekly data')
-  inited=true
+  // inited=true
 }
 
 function getCanvasContainer(element) {
   // Check if the element is an SVG element.
   if (element instanceof SVGElement) {
     // Traverse up the DOM tree until we find the canvas element.
-    let currentElement = element;
+    let currentElement = element
     while (currentElement) {
       if (currentElement.tagName === 'svg') {
-        return currentElement; // Found the canvas container.
+        return currentElement // Found the canvas container.
       }
-      currentElement = currentElement.parentElement;
+      currentElement = currentElement.parentElement
     }
   }
-  return null; // Canvas container not found.
+  return null // Canvas container not found.
 }
 
 function isWithinTimeInterval(instant, interval) {
   return Number(interval.start) <= instant && instant <= Number(interval.end)
 }
 
-function toRawObject(reactiveObject) {
-  if (!reactiveObject) {
-    return reactiveObject; // Handle null or undefined inputs
-  }
+// function toRawObject(reactiveObject) {
+//   if (!reactiveObject) {
+//     return reactiveObject; // Handle null or undefined inputs
+//   }
+//
+//   if (typeof reactiveObject !== 'object') {
+//     return reactiveObject; // Handle primitive types
+//   }
+//
+//   if (Array.isArray(reactiveObject)) {
+//     return reactiveObject.map(item => toRawObject(item));
+//   }
+//
+//   const rawObject = {};
+//   for (const key in reactiveObject) {
+//     if (Object.prototype.hasOwnProperty.call(reactiveObject, key)) {
+//       // Vue 3: use toRaw()
+//       if(typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null && '__v_raw' in reactiveObject[key]){
+//         rawObject[key] = Vue.toRaw(reactiveObject[key]);
+//       } else if (typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null) {
+//         rawObject[key] = toRawObject(reactiveObject[key]);
+//       } else {
+//         rawObject[key] = reactiveObject[key];
+//       }
+//     }
+//   }
+//   return rawObject;
+// }
 
-  if (typeof reactiveObject !== 'object') {
-    return reactiveObject; // Handle primitive types
-  }
-
-  if (Array.isArray(reactiveObject)) {
-    return reactiveObject.map(item => toRawObject(item));
-  }
-
-  const rawObject = {};
-  for (const key in reactiveObject) {
-    if (Object.prototype.hasOwnProperty.call(reactiveObject, key)) {
-      // Vue 3: use toRaw()
-      if(typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null && '__v_raw' in reactiveObject[key]){
-        rawObject[key] = Vue.toRaw(reactiveObject[key]);
-      } else if (typeof reactiveObject[key] === 'object' && reactiveObject[key] !== null) {
-        rawObject[key] = toRawObject(reactiveObject[key]);
-      } else {
-        rawObject[key] = reactiveObject[key];
-      }
-    }
-  }
-  return rawObject;
-}
-
-function handleCanvasClick(event, dow){
+function handleCanvasClick(event) {
   let c = document.getElementById(event.target.id)
-  if (!c){
-    c= getCanvasContainer(event.target)
+  if (!c) {
+    c = getCanvasContainer(event.target)
   }
-  const rect = c.getBoundingClientRect();
+  const rect = c.getBoundingClientRect()
   const y = event.clientY - rect.top
-  let theDay=c.id.substring(6)
-  let data= timelineObject.value.workDayData
+  let theDay = c.id.substring(6)
+  let data = timelineObject.value.workDayData
   let length = data.last - data.first
   let conversion = length / data.canvasHeight
-  let value=  (conversion * y) + data.first
+  let value = conversion * y + data.first
   console.log(value)
   console.log(timelineObject.value.workDayData)
-  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
-  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+  let theDayData = timelineObject.value.workDayData.weeklyData.get(theDay)
+  if (
+    isWithinTimeInterval(value, { start: data.first, end: theDayData.intervals_with_idle[0].start })
+  ) {
     // Before the first activity
     console.log('Before first activity')
-  }
-  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+  } else if (
+    isWithinTimeInterval(value, {
+      start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length - 1].end,
+      end: data.last,
+    })
+  ) {
     //After last activity
     console.log('After last activity')
-  }
-  else {
-    let eventIndex=0
-    for (let ev of theDayData.intervals_with_idle){
+  } else {
+    let eventIndex = 0
+    for (let ev of theDayData.intervals_with_idle) {
       console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
-      if (isWithinTimeInterval(value, ev)){
+      if (isWithinTimeInterval(value, ev)) {
         console.log('Event found!')
-        console.log(ev.taskKey +": "+ ev.task)
-        let data = toRawObject(timelineObject.value.events)
-        console.log('no proxy data?')
-        console.log(data)
-        window.electronAPI.shareTimeline(data)
-        window.electronAPI.openPage(`timeEntry`, `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`)
+        console.log(ev.taskKey + ': ' + ev.task)
+        // let data = toRawObject(timelineObject.value.events)
+        // console.log('no proxy data?')
+        // console.log(data)
+        console.log('sharing...')
+        console.log(sharedEvents)
+        window.electronAPI.shareTimeline(sharedEvents)
+        window.electronAPI.openPage(
+          `timeEntry`,
+          `day=${theDay}&idTask=${ev.taskId}&index=${eventIndex}`,
+        )
         break
       }
       eventIndex++
@@ -173,45 +182,45 @@ function handleCanvasClick(event, dow){
   }
 }
 
-function handleCanvasSingleClick(event){
-  let c = document.getElementById(event.target.id)
-  if (!c){
-    c= getCanvasContainer(event.target)
-  }
-  const rect = c.getBoundingClientRect();
-  const y = event.clientY - rect.top
-  let theDay=c.id.substring(6)
-  let data= timelineObject.value.workDayData
-  let length = data.last - data.first
-  let conversion = length / data.canvasHeight
-  let value=  (conversion * y) + data.first
-  console.log(value)
-  console.log(timelineObject.value.workDayData)
-  let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
-  if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
-    // Before the first activity
-    console.log('Before first activity')
-  }
-  else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
-    //After last activity
-    console.log('After last activity')
-  }
-  else {
-    let eventIndex=0
-    for (let ev of theDayData.intervals_with_idle){
-      console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
-      if (isWithinTimeInterval(value, ev)){
-        console.log('Event found!')
-        console.log(ev.taskKey +": "+ ev.task)
-        let task = BoardTask.allTasks.find(t => t.idTask == ev.taskId)
-        console.log(task)
-        events('select', task)
-        break
-      }
-      eventIndex++
-    }
-  }
-}
+// function handleCanvasSingleClick(event){
+//   let c = document.getElementById(event.target.id)
+//   if (!c){
+//     c= getCanvasContainer(event.target)
+//   }
+//   const rect = c.getBoundingClientRect();
+//   const y = event.clientY - rect.top
+//   let theDay=c.id.substring(6)
+//   let data= timelineObject.value.workDayData
+//   let length = data.last - data.first
+//   let conversion = length / data.canvasHeight
+//   let value=  (conversion * y) + data.first
+//   console.log(value)
+//   console.log(timelineObject.value.workDayData)
+//   let theDayData= timelineObject.value.workDayData.weeklyData.get(theDay)
+//   if (isWithinTimeInterval(value, {start: data.first, end: theDayData.intervals_with_idle[0].start})){
+//     // Before the first activity
+//     console.log('Before first activity')
+//   }
+//   else if (isWithinTimeInterval(value, { start: theDayData.intervals_with_idle[theDayData.intervals_with_idle.length-1].end, end: data.last})){
+//     //After last activity
+//     console.log('After last activity')
+//   }
+//   else {
+//     let eventIndex=0
+//     for (let ev of theDayData.intervals_with_idle){
+//       console.log(`timespan: ${parseFloat(ev.start)} - ${parseFloat(ev.end)}`)
+//       if (isWithinTimeInterval(value, ev)){
+//         console.log('Event found!')
+//         console.log(ev.taskKey +": "+ ev.task)
+//         let task = BoardTask.allTasks.find(t => t.idTask == ev.taskId)
+//         console.log(task)
+//         events('select', task)
+//         break
+//       }
+//       eventIndex++
+//     }
+//   }
+// }
 
 // onUnmounted(async ()=>{
 //   // if (canvasRefs.value){
@@ -224,8 +233,8 @@ function handleCanvasSingleClick(event){
 //   // }
 // })
 
-onMounted(async ()=>{
-  mountedFlag = false
+onMounted(async () => {
+  // mountedFlag = false
   console.log('tmTimeline.mounted')
   console.log('timeline component mounted')
   console.log(props.startDate)
@@ -234,17 +243,17 @@ onMounted(async ()=>{
   if (config) {
     console.log('Loaded configuration')
     //console.log(config)
-    if (!config){
-      mountedFlag= true
+    if (!config) {
+      // mountedFlag= true
       console.log('tmTimeline.mounted: there was no configuration')
       return
     }
     store_configuration(config)
   }
 
-  if (!props.startDate || !props.endDate){
+  if (!props.startDate || !props.endDate) {
     console.log('tmTimeline.mounted: No start date range')
-    mountedFlag= true
+    // mountedFlag= true
     return
   }
   console.log('tmTimeline.mounted: getting data...')
@@ -261,12 +270,12 @@ onMounted(async ()=>{
   // else {
   //   console.log('No dblclick event handler to canvas')
   // }
-  mountedFlag= true
+  // mountedFlag= true
 })
 
-watch(props, async ()=>{
+watch(props, async () => {
   console.log('watch props tmTimeline')
-  if (!props.startDate || !props.endDate){
+  if (!props.startDate || !props.endDate) {
     console.log('No start date range')
     return
   }
@@ -285,8 +294,8 @@ watch(props, async ()=>{
   // }
 })
 
-window.electronAPI.onRefreshTimeline(async() => {
-  await getData();
+window.electronAPI.onRefreshTimeline(async () => {
+  await getData()
 })
 
 // function setPomodoroDataValues(data){
@@ -308,41 +317,47 @@ window.electronAPI.onRefreshTimeline(async() => {
 //   }
 // }
 
-function checkCurrentTimeIntoView(){
+function checkCurrentTimeIntoView() {
   let idMain = `${props.uiId}_mainDiv`
   let elMain = document.getElementById(idMain)
-  if(elMain==null){
+  if (elMain == null) {
     console.log(`can't find ${props.uiId}_mainDiv`)
     return
   }
-  let mainSize = elMain.getBoundingClientRect();
+  let mainSize = elMain.getBoundingClientRect()
 
   // lets search for a parent component with a smaller height (which surely will have a scroll bar)
   let scrollingParent = elMain.parentElement
-  if (scrollingParent==null){
+  if (scrollingParent == null) {
     console.log('no (scrolling) parent')
-    return;
+    return
   }
-  let scrollingSize = scrollingParent.getBoundingClientRect();
-  if (scrollingSize==null){
+  let scrollingSize = scrollingParent.getBoundingClientRect()
+  if (scrollingSize == null) {
     return
   }
   //console.log('checkpoint1')
-  while (scrollingSize.height >= mainSize.height){
+  while (scrollingSize.height >= mainSize.height) {
     scrollingParent = scrollingParent.parentElement
-    scrollingSize = scrollingParent.getBoundingClientRect();
+    scrollingSize = scrollingParent.getBoundingClientRect()
   }
   // console.log('scrollingSize:')
   // console.log(scrollingSize)
   let id = `${props.uiId}_currentTime`
   let e = document.getElementById(id)
-  let viewportOffset = e.getBoundingClientRect();
+  if (e == null) {
+    return
+  }
+  let viewportOffset = e.getBoundingClientRect()
   // console.log('currentTime')
   // console.log(viewportOffset)
-  if (viewportOffset.y > scrollingSize.y + scrollingSize.height && counterCurrentTimeIntoView <= 0){
+  if (
+    viewportOffset.y > scrollingSize.y + scrollingSize.height &&
+    counterCurrentTimeIntoView <= 0
+  ) {
     console.log('scrolling to currentTime')
-     e.scrollIntoView()
-    counterCurrentTimeIntoView=60
+    e.scrollIntoView()
+    counterCurrentTimeIntoView = 60
   }
   counterCurrentTimeIntoView--
 
@@ -356,66 +371,66 @@ function checkCurrentTimeIntoView(){
   // console.log(scroll)
 }
 
-function handleEventClick(event){
-  const id = Number(event.target.dataset.id);
+function handleEventClick(event) {
+  const id = Number(event.target.dataset.id)
   console.log(`clicked on event with ${id}`)
   console.log(timelineObject.value.intervalsMap)
-  if (timelineObject.value.intervalsMap.has(id)){
+  if (timelineObject.value.intervalsMap.has(id)) {
     console.log('found the interval!')
     selectedInterval.value = id
-      //timelineObject.value.intervalsMap.get(id)
+    //timelineObject.value.intervalsMap.get(id)
     console.log(selectedInterval)
   }
 }
 
-function handleEventDblClick(event){
-  const id = Number(event.target.dataset.id);
-  console.log(`clicked on event with ${id}`)
-  console.log(timelineObject.value.intervalsMap)
-  if (timelineObject.value.intervalsMap.has(id)){
-    console.log('found the interval!')
-    selectedInterval.value = id
-      //timelineObject.value.intervalsMap.get(id)
-    console.log(selectedInterval)
-  }
-}
+// function handleEventDblClick(event){
+//   const id = Number(event.target.dataset.id);
+//   console.log(`clicked on event with ${id}`)
+//   console.log(timelineObject.value.intervalsMap)
+//   if (timelineObject.value.intervalsMap.has(id)){
+//     console.log('found the interval!')
+//     selectedInterval.value = id
+//       //timelineObject.value.intervalsMap.get(id)
+//     console.log(selectedInterval)
+//   }
+// }
 
-window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
+window.electronAPI.pomodoroTick(async (pomodoroMsg) => {
   // console.log('pomodoroMsg')
   // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'updateTimer':
       //console.log('pomodoro tick')
       if (timelineObject.value != null) {
-        if (timelineObject.value.tentativePeriod!=null){
+        if (timelineObject.value.tentativePeriod != null) {
           timelineObject.value.updateTentativePeriod()
         }
         triggerRef(timelineObject)
-        checkCurrentTimeIntoView()
       }
-      break;
+      break
     case 'pomodoroEnd':
-      if(timelineObject.value!=null){
-        timelineObject.value.tentativePeriod=null
+      if (timelineObject.value != null) {
+        timelineObject.value.tentativePeriod = null
       }
       await getData()
-      break;
+      checkCurrentTimeIntoView()
+      break
     case 'pomodoroTaskStart':
-      if(timelineObject.value!=null){
+      checkCurrentTimeIntoView()
+      if (timelineObject.value != null) {
         timelineObject.value.startTentativePeriod(pomodoroMsg.pomodoroData)
       }
-      break;
+      break
     case 'pomodoroTaskChanged':
-      if(timelineObject.value!=null){
-        timelineObject.value.tentativePeriod=null
+      if (timelineObject.value != null) {
+        timelineObject.value.tentativePeriod = null
       }
       await getData()
+      checkCurrentTimeIntoView()
       timelineObject.value.startTentativePeriod(pomodoroMsg.pomodoroData)
-      break;
+      break
   }
 })
-
-
 </script>
 
 <template>
@@ -424,9 +439,23 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
       <div>Time</div>
       <div class="canvasContainer">
         <svg class="canvas" id="canvasTimeline">
-          <line v-for="tick in timelineObject?.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
-                :y2="timelineObject.tickYPosition(tick)" />
-          <text v-for="tick in timelineObject?.workDayData.workingHours" :key="tick.epoch" x="0" :y="timelineObject.tickYPosition(tick)"  class="timeLine">
+          <line
+            v-for="tick in timelineObject?.workDayData.workingHours"
+            :key="tick.epoch"
+            stroke-dasharray="4"
+            class="timelineline"
+            x1="0"
+            x2="100%"
+            :y1="timelineObject.tickYPosition(tick)"
+            :y2="timelineObject.tickYPosition(tick)"
+          />
+          <text
+            v-for="tick in timelineObject?.workDayData.workingHours"
+            :key="tick.epoch"
+            x="0"
+            :y="timelineObject.tickYPosition(tick)"
+            class="timeLine"
+          >
             {{ tick.time }}
           </text>
         </svg>
@@ -435,66 +464,130 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
     <div v-for="dow in timelineObject?.workDayData.daysToShow" :key="dow" class="flex-items">
       <div class="dowHeader">{{ timelineObject.workDayData.dayNameMap.get(dow) }}</div>
       <div class="canvasContainer">
-        <svg class="canvas" ref="canvases" :id="`canvas${dow}`" @dblclick="handleCanvasClick($event, dow)" >
-          <line v-for="tick in timelineObject.workDayData.workingHours" :key="tick.epoch" stroke-dasharray="4" class="timelineline" x1="0" x2="100%" :y1="timelineObject.tickYPosition(tick)"
-                :y2="timelineObject.tickYPosition(tick)" />
-          <line v-if="dow == timelineObject.workDayData.todayKey" stroke="red"
-                x1="0"  x2="100%" :y1="timelineObject.currentTime()" :y2="timelineObject.currentTime()"  />
+        <svg
+          class="canvas"
+          ref="canvases"
+          :id="`canvas${dow}`"
+          @dblclick="handleCanvasClick($event, dow)"
+        >
+          <line
+            v-for="tick in timelineObject.workDayData.workingHours"
+            :key="tick.epoch"
+            stroke-dasharray="4"
+            class="timelineline"
+            x1="0"
+            x2="100%"
+            :y1="timelineObject.tickYPosition(tick)"
+            :y2="timelineObject.tickYPosition(tick)"
+          />
+          <line
+            v-if="dow == timelineObject.workDayData.todayKey"
+            stroke="red"
+            x1="0"
+            x2="100%"
+            :y1="timelineObject.currentTime()"
+            :y2="timelineObject.currentTime()"
+          />
           <g v-for="interval in timelineObject.workDayMeetings(dow)" :key="interval.id">
             <rect
               :x="timelineObject.getIntervalXi(interval)"
               :y="timelineObject.getIntervalY(interval)"
               :width="timelineObject.getIntervalWidthColumn(interval)"
-              :fill="interval.color" fill-opacity="0.4"
-              stroke="white" stroke-dasharray="5 5"
-              :height="timelineObject.getIntervalHeight(interval)" />
-            <text :x="timelineObject.getIntervalXi(interval)"
-                  :y="timelineObject.getIntervalY(interval)+16"
-                  v-if="timelineObject.isLongEnough4Text(interval)" class="taskTitle" >
-              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="0">{{ interval.summary }}</tspan>
-              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">{{ interval.taskKey }}</tspan>
-              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">{{ timelineObject.getTimeOfDay(interval.elapsed) }}</tspan>
+              :fill="interval.color"
+              fill-opacity="0.4"
+              stroke="white"
+              stroke-dasharray="5 5"
+              :height="timelineObject.getIntervalHeight(interval)"
+            />
+            <text
+              :x="timelineObject.getIntervalXi(interval)"
+              :y="timelineObject.getIntervalY(interval) + 16"
+              v-if="timelineObject.isLongEnough4Text(interval)"
+              class="taskTitle"
+            >
+              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="0">
+                {{ interval.summary }}
+              </tspan>
+              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">
+                {{ interval.taskKey }}
+              </tspan>
+              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">
+                {{ timelineObject.getTimeOfDay(interval.elapsed) }}
+              </tspan>
             </text>
           </g>
           <g v-for="interval in timelineObject.workDayIntervals(dow)" :key="interval.id">
             <rect
-              @click="handleEventClick" :data-id="interval.idInterval"
+              @click="handleEventClick"
+              :data-id="interval.idInterval"
               :x="timelineObject.getIntervalXi(interval)"
               :y="timelineObject.getIntervalY(interval)"
               :width="timelineObject.getIntervalWidthColumn(interval)"
-              :fill="interval.color" :fill-opacity="interval?.tentative ? '70%': '100%'"
+              :fill="interval.color"
+              :fill-opacity="interval?.tentative ? '70%' : '100%'"
               stroke="white"
-              :height="timelineObject.getIntervalHeight(interval)" />
-            <text :x="timelineObject.getIntervalXi(interval)"
-                  :y="timelineObject.getIntervalY(interval)+16"
-                  v-if="timelineObject.isLongEnough4Text(interval)"
-                  :class="interval?.idInterval===selectedInterval ? 'taskTitleSelected' : 'taskTitle'" >
-              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="0">{{ interval.task }}</tspan>
-              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">{{ interval.taskKey }}</tspan>
-              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">{{ timelineObject.getTimeOfDay(interval.elapsed) }}</tspan>
+              :height="timelineObject.getIntervalHeight(interval)"
+            />
+            <text
+              :x="timelineObject.getIntervalXi(interval)"
+              :y="timelineObject.getIntervalY(interval) + 16"
+              v-if="timelineObject.isLongEnough4Text(interval)"
+              :class="interval?.idInterval === selectedInterval ? 'taskTitleSelected' : 'taskTitle'"
+            >
+              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="0">
+                {{ interval.task }}
+              </tspan>
+              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">
+                {{ interval.taskKey }}
+              </tspan>
+              <tspan :x="timelineObject.getIntervalXi(interval, 1)" dy="1.2em">
+                {{ timelineObject.getTimeOfDay(interval.elapsed) }}
+              </tspan>
             </text>
           </g>
 
-          <g v-if="timelineObject?.tentativePeriod != null" >
+          <g v-if="timelineObject?.tentativePeriod != null">
             <rect
               :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod)"
               :y="timelineObject.getIntervalY(timelineObject.tentativePeriod)"
               :width="timelineObject.getIntervalWidthColumn(timelineObject.tentativePeriod)"
-              :fill="timelineObject.tentativePeriod.color" :fill-opacity="timelineObject.tentativePeriod?.tentative ? '70%': '100%'"
+              :fill="timelineObject.tentativePeriod.color"
+              :fill-opacity="timelineObject.tentativePeriod?.tentative ? '70%' : '100%'"
               stroke="white"
-              :height="timelineObject.getIntervalHeight(timelineObject.tentativePeriod)" />
-            <text :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod)"
-                  :y="timelineObject.getIntervalY(timelineObject.tentativePeriod)+16"
-                  v-if="timelineObject.isLongEnough4Text(timelineObject.tentativePeriod)" class="taskTitle" >
-              <tspan :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod, 1)" dy="0">{{ timelineObject.tentativePeriod.task }}</tspan>
-              <tspan :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod, 1)" dy="1.2em">{{ timelineObject.tentativePeriod.taskKey }}</tspan>
-              <tspan :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod, 1)" dy="1.2em">{{ timelineObject.getTimeOfDay(timelineObject.tentativePeriod.elapsed) }}</tspan>
+              :height="timelineObject.getIntervalHeight(timelineObject.tentativePeriod)"
+            />
+            <text
+              :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod)"
+              :y="timelineObject.getIntervalY(timelineObject.tentativePeriod) + 16"
+              v-if="timelineObject.isLongEnough4Text(timelineObject.tentativePeriod)"
+              class="taskTitle"
+            >
+              <tspan :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod, 1)" dy="0">
+                {{ timelineObject.tentativePeriod.task }}
+              </tspan>
+              <tspan
+                :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod, 1)"
+                dy="1.2em"
+              >
+                {{ timelineObject.tentativePeriod.taskKey }}
+              </tspan>
+              <tspan
+                :x="timelineObject.getIntervalXi(timelineObject.tentativePeriod, 1)"
+                dy="1.2em"
+              >
+                {{ timelineObject.getTimeOfDay(timelineObject.tentativePeriod.elapsed) }}
+              </tspan>
             </text>
           </g>
 
-          <line v-if="dow == timelineObject.workDayData.todayKey" stroke="red"
-                x1="0"  x2="100%" :y1="timelineObject.currentTime()" :y2="timelineObject.currentTime()+1"
-                :id="`${props.uiId}_currentTime`"
+          <line
+            v-if="dow == timelineObject.workDayData.todayKey"
+            stroke="red"
+            x1="0"
+            x2="100%"
+            :y1="timelineObject.currentTime()"
+            :y2="timelineObject.currentTime() + 1"
+            :id="`${props.uiId}_currentTime`"
           />
         </svg>
       </div>
@@ -604,9 +697,9 @@ svg.canvas {
   width: 100%;
 }
 
-div.dowHeader{
+div.dowHeader {
   text-align: center;
-  max-height:20px;
+  max-height: 20px;
 }
 
 .taskTitle {
@@ -631,7 +724,7 @@ div.dowHeader{
   font-size: 12px;
 }
 
-.timelineline{
+.timelineline {
   stroke: black;
 }
 
@@ -643,10 +736,8 @@ div.dowHeader{
     font-size: 14px;
   }
 
-  .timelineline{
+  .timelineline {
     stroke: white;
   }
-
 }
-
 </style>

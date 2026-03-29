@@ -1,15 +1,15 @@
 // import { useSessionStore } from 'stores/user_session';
-import {reactive} from "vue";
+// import {reactive} from "vue";
 //const store = useSessionStore()
 
 function dummy(){
     console.log('need a breakpoint?')
 }
 
-function loginCallback(data){
-  console.log('here')
-  console.log(data)
-}
+// function loginCallback(data){
+//   console.log('here')
+//   console.log(data)
+// }
 
 let configuration
 

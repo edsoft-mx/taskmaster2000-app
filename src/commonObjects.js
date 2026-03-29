@@ -259,51 +259,52 @@ class BoardTask {
     })
   }
 
-  getMainInfo() {
-    let description = `<h3><img class="taskIcon" src="${task.taskType}.png">
-    <strong>${this.key}</strong> | ${this.projectName}<br>${this.title}
-    </h3>`
-  }
+//   getMainInfo(task) {
+//     let description = `<h3><img class="taskIcon" src="${task.taskType}.png">
+//     <strong>${this.key}</strong> | ${this.projectName}<br>${this.title}
+//     </h3>`
+//     return description;
+//   }
+//
+//   getBasicInfo() {
+//     let taskDescription1 = `
+//
+// State: \` ${task.state} \`
+// Priority: ![alt-priority](${this.priority}.svg =24x24) ${this.priority}
+//
+// `
+//     if (this.description) {
+//       taskDescription1 += `## Description:
+//
+// ${this.description}
+//
+// `
+//     }
+//     if (this.notes) {
+//       taskDescription1 += `## Notes:
+//
+// ${this.notes}
+//
+// `
+//     }
+//     taskDescription1 += `
+//
+// ## Activity:
+//
+// `
+//     return taskDescription1;
+//   }
 
-  getBasicInfo() {
-    let taskDescription1 = `
-
-State: \` ${task.state} \`
-Priority: ![alt-priority](${this.priority}.svg =24x24) ${this.priority}
-
-`
-    if (this.description) {
-      taskDescription1 += `## Description:
-
-${this.description}
-
-`
-    }
-    if (this.notes) {
-      taskDescription1 += `## Notes:
-
-${this.notes}
-
-`
-    }
-    taskDescription1 += `
-
-## Activity:
-
-`
-    return taskDescription1;
-  }
-
-  getActitivyInfo(){
-    let result = `
-Estimated Duration: ${this.estimatedDuration ? this.estimatedDuration : 'n/a'}
-Time Spent: ${ this.timeSpent ? this.timeSpent : 'n/a' }
-Time Spent Today: ${ this.timeSpentToday ? this.timeSpentToday : 'n/a' }
-
-  `
-      return result;
-  }
-}
+//   getActitivyInfo(){
+//     let result = `
+// Estimated Duration: ${this.estimatedDuration ? this.estimatedDuration : 'n/a'}
+// Time Spent: ${ this.timeSpent ? this.timeSpent : 'n/a' }
+// Time Spent Today: ${ this.timeSpentToday ? this.timeSpentToday : 'n/a' }
+//
+//   `
+//       return result;
+//   }
+ }
 
 function resetData(){
   allStates = []

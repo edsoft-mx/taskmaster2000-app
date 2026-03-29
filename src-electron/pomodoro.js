@@ -1,6 +1,6 @@
 import {Menu, Notification} from 'electron'
 
-let appConf = null
+// let appConf = null
 let grpcMessenger = null
 let currentUser = null
 let notifyFirstTime = true
@@ -469,13 +469,19 @@ function showPomodoroMenu(tasks){
 }
 
 function pomodoroWatcherStreamingCall(client, user) {
-  return new Promise((resolve, reject) => {
+  const MAX_DELAY = 30000
+  let delay = 1000
+  let timeOutHandle = null
+
+  function connect() {
+    if (timeOutHandle) {
+      clearTimeout(timeOutHandle)
+      timeOutHandle = null
+    }
+    delay = 1000
+    console.log('conecting pomodoroWatcherStreamingCall...')
     const call = client.SubscribePomodoroWatcher({user: user})
     call.on('data', async (status) => {
-      // console.log('Message server send Pomodoro status')
-      // console.log(status);
-      // console.log(pomodoroData);
-      //pomodoroData.notifiedEndOfBreak= false
       let notifyTaskStart = false
       notifyFirstTime = false
       if (!notifyFirstTime && (status.active != pomodoroData.timerActive || status.session_number != pomodoroData.session  || (status._id_task && status.id_task !== pomodoroData.task?.id_task) )){
@@ -533,15 +539,29 @@ function pomodoroWatcherStreamingCall(client, user) {
       //console.log(pomodoroData)
       await pomodoroUpdateLabel()
     });
-    call.on('status', status => {
-      console.log(`[${requestId}] wanted = ${grpc.status[expectedCode]} got = ${grpc.status[status.code]}`);
-      resolve();
+    // call.on('status', status => {
+    //   console.log(`[${requestId}] wanted = ${grpc.status[expectedCode]} got = ${grpc.status[status.code]}`);
+    // });
+    call.on('error', error => {
+      if (timeOutHandle) {
+        clearTimeout(timeOutHandle)
+        timeOutHandle = null
+      }
+      console.log(`pomodoroWatcherStreamingCall error: ${error.message}, reconnecting in ${delay}ms`)
+      timeOutHandle = setTimeout(connect, delay)
+      delay = Math.min(delay * 2, MAX_DELAY)
     });
-    call.on('error', () => {
-      // Ignore error event
+    call.on('end', () => {
+      if (timeOutHandle) {
+        clearTimeout(timeOutHandle)
+        timeOutHandle = null
+      }
+      console.log(`pomodoroWatcherStreamingCall stream ended, reconnecting in ${delay}ms`)
+      timeOutHandle = setTimeout(connect, delay)
+      delay = Math.min(delay * 2, MAX_DELAY)
     });
-    //call.end();
-  });
+  }
+  connect()
 }
 
 async function  setPomodoroWatcher(grpcClient, user, config){
@@ -549,7 +569,7 @@ async function  setPomodoroWatcher(grpcClient, user, config){
   //console.log(user, config)
   currentUser = user;
   grpcMessenger = grpcClient
-  appConf= config
+  // appConf= config
   await pomodoroWatcherStreamingCall(grpcClient, user)
   console.log(user, config)
 }

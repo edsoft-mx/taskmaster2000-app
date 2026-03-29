@@ -3,20 +3,8 @@ defineOptions({
   name: 'TMTimeLineH',
 })
 
-import {
-  ref,
-  reactive,
-  defineProps,
-  watch,
-  inject,
-  onBeforeMount,
-  onMounted,
-  onUnmounted,
-  useTemplateRef,
-  nextTick, triggerRef
-} from 'vue'
-import {callApi, store_configuration, Timeline} from 'src/common'
-
+import { ref, defineProps, watch, onMounted, triggerRef } from 'vue'
+import { callApi, store_configuration, Timeline } from 'src/common'
 
 const props = defineProps({
   startDate: {
@@ -36,7 +24,7 @@ const props = defineProps({
     required: true,
   },
   pomodoroData: {
-  type: Object,
+    type: Object,
     required: false,
   },
 })
@@ -54,20 +42,22 @@ const props = defineProps({
 //   notifiedEndOfBreak: false,
 //   breakExpiredATimeAgo: false,
 // })
-let canvasRefs = useTemplateRef('canvases')
+// let canvasRefs = useTemplateRef('canvases')
 
-let inited=false
-let mountedFlag = false
+// let inited=false
+// let mountedFlag = false
 let timelineObject = ref(null)
 //let allProjects = null
 
-
-async function getData(dataDateRange=null) {
+async function getData() {
   console.log('timeline')
   //allProjects = await callApi('GET', 'user/projects')
   let currentWeek
   // let meetings
-  currentWeek = await callApi('GET', `user/spent_time/date_range/${props.startDate}/${props.endDate}`)
+  currentWeek = await callApi(
+    'GET',
+    `user/spent_time/date_range/${props.startDate}/${props.endDate}`,
+  )
   let canvas = document.getElementById('canvasWorkDay')
   let canvasWidth = canvas.clientWidth //? canvas.clientWidth : 1024
   timelineObject.value = new Timeline(
@@ -78,16 +68,16 @@ async function getData(dataDateRange=null) {
     false,
     canvasWidth,
   )
-  if (props.pomodoroData != null && props.pomodoroData.timerActive){
+  if (props.pomodoroData != null && props.pomodoroData.timerActive) {
     timelineObject.value.startTentativePeriod(props.pomodoroData, true)
   }
   console.log('Done getting timelineH data')
   console.log(timelineObject.value)
-  inited=true
+  //inited=true
 }
 
-onMounted(async ()=>{
-  mountedFlag = false
+onMounted(async () => {
+  // mountedFlag = false
   console.log('timelineH component mounted')
   console.log(props.startDate)
   console.log(props.endDate)
@@ -95,30 +85,32 @@ onMounted(async ()=>{
   if (config) {
     console.log('Loaded configuration')
     //console.log(config)
-    if (!config){
-      mountedFlag= true
+    if (!config) {
+      //mountedFlag= true
       return
     }
     store_configuration(config)
   }
-  if (!props.startDate || !props.endDate){
+  if (!props.startDate || !props.endDate) {
     console.log('No start date range')
-    mountedFlag= true
+    //mountedFlag= true
     return
   }
   await getData()
-  mountedFlag= true
-  if (canvasRefs.value){
-    //console.log(canvasRefs.value)
-    for (let c of canvasRefs.value){
-      c.addEventListener('dblclick', handleCanvasClick)
-    }
-  }
+  //mountedFlag= true
+
+  // handleCanvasClick is not defined!
+  // if (canvasRefs.value) {
+  //   //console.log(canvasRefs.value)
+  //   for (let c of canvasRefs.value) {
+  //     c.addEventListener('dblclick', handleCanvasClick)
+  //   }
+  // }
 })
 
-watch(props, async ()=>{
+watch(props, async () => {
   console.log('watch props tmTimelineH')
-  if (!props.startDate || !props.endDate){
+  if (!props.startDate || !props.endDate) {
     console.log('No start date range')
     return
   }
@@ -144,35 +136,35 @@ watch(props, async ()=>{
 //   }
 // }
 
-window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
+window.electronAPI.pomodoroTick(async (pomodoroMsg) => {
   // console.log('pomodoroMsg')
   // console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'updateTimer':
       //console.log('pomodoro tick')
-      if (timelineObject.value != null && timelineObject.value.tentativePeriod!=null) {
+      if (timelineObject.value != null && timelineObject.value.tentativePeriod != null) {
         timelineObject.value.updateTentativePeriod()
         triggerRef(timelineObject)
       }
-      break;
+      break
     case 'pomodoroEnd':
-      if(timelineObject.value!=null){
-        timelineObject.value.tentativePeriod=null
+      if (timelineObject.value != null) {
+        timelineObject.value.tentativePeriod = null
       }
       await getData()
-      break;
+      break
     case 'pomodoroTaskStart':
-      if(timelineObject.value!=null){
+      if (timelineObject.value != null) {
         timelineObject.value.startTentativePeriod(pomodoroMsg.pomodoroData)
       }
-      break;
+      break
     case 'pomodoroTaskChanged':
-      if(timelineObject.value!=null){
-        timelineObject.value.tentativePeriod=null
+      if (timelineObject.value != null) {
+        timelineObject.value.tentativePeriod = null
       }
       await getData()
       timelineObject.value.startTentativePeriod(pomodoroMsg.pomodoroData)
-      break;
+      break
   }
 })
 
@@ -226,11 +218,16 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
 //       break;
 //   }
 // })
-
 </script>
 
 <template>
-  <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="32px" class="timescale" id="canvasWorkDay" >
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="100%"
+    height="32px"
+    class="timescale"
+    id="canvasWorkDay"
+  >
     <defs>
       <linearGradient id="horzGrad1">
         <stop offset="0%" stop-opacity="85" />
@@ -238,19 +235,28 @@ window.electronAPI.pomodoroTick(async(pomodoroMsg) => {
         <stop offset="100%" stop-opacity="85" />
       </linearGradient>
     </defs>
-    <rect v-for="interval in timelineObject?.workDayIntervals(timelineObject.workDayData.todayKey)"
-          :x="timelineObject.getIntervalX(interval)" :key="interval.id"
-          y="0" height="100%" :fill="interval.color" stroke="white"
-          :fill-opacity="interval?.tentative ? '70%' : '100%'"
-          :width="timelineObject.getIntervalWidth(interval)" />
-    <rect v-if="timelineObject?.tentativePeriod != null"
-          :x="timelineObject.getIntervalX(timelineObject.tentativePeriod)"
-          y="0" height="100%" :fill="timelineObject.tentativePeriod.color" stroke="white"
-          :fill-opacity="timelineObject.tentativePeriod?.tentative ? '70%' : '100%'"
-          :width="timelineObject.getIntervalWidth(timelineObject.tentativePeriod)" />
+    <rect
+      v-for="interval in timelineObject?.workDayIntervals(timelineObject.workDayData.todayKey)"
+      :x="timelineObject.getIntervalX(interval)"
+      :key="interval.id"
+      y="0"
+      height="100%"
+      :fill="interval.color"
+      stroke="white"
+      :fill-opacity="interval?.tentative ? '70%' : '100%'"
+      :width="timelineObject.getIntervalWidth(interval)"
+    />
+    <rect
+      v-if="timelineObject?.tentativePeriod != null"
+      :x="timelineObject.getIntervalX(timelineObject.tentativePeriod)"
+      y="0"
+      height="100%"
+      :fill="timelineObject.tentativePeriod.color"
+      stroke="white"
+      :fill-opacity="timelineObject.tentativePeriod?.tentative ? '70%' : '100%'"
+      :width="timelineObject.getIntervalWidth(timelineObject.tentativePeriod)"
+    />
   </svg>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

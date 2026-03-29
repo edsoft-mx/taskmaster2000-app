@@ -2,7 +2,7 @@
 defineOptions({
   name: 'tm-time-entry'
 });
-import { ref, reactive, defineProps, watch, inject, computed, onMounted } from 'vue'
+import { ref, watch,  computed, onMounted } from 'vue'
 import {callApi, store_configuration} from 'src/common'
 
 // const props = defineProps({
@@ -172,7 +172,7 @@ let invalidData = computed(() => {
 
 watch(
   timespan,
-(newVal, oldVal)=>{
+(newVal)=>{
   //console.log(newVal)
   if (flag2){
     return
@@ -185,7 +185,7 @@ watch(
 
 watch (
   timeStart,
-  (newVal, oldVal)=>{
+  (newVal)=>{
     if (flag1){
       return
     }
@@ -209,7 +209,7 @@ watch (
 
 watch (
   timeEnd,
-  (newVal, oldVal)=>{
+  (newVal)=>{
     if (flag1){
       return
     }
