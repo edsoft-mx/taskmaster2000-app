@@ -39,6 +39,7 @@ let configuration = null
 let mainWindow = null
 let pomodoroWindow = null
 let pomodoroLabels = 'bottom';
+let ringTheBell = true;
 let toolWindows = new Map()
 let taskWindows = new Map()
 let epicWindows = new Map()
@@ -96,9 +97,7 @@ function getMenu(){
   return [
     {
       label: 'File',
-      submenu: [
-        {role: 'quit'}
-      ]
+      submenu: [{ role: 'quit' }],
     },
     {
       label: 'Edit',
@@ -109,13 +108,19 @@ function getMenu(){
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        ]
+      ],
     },
     {
       label: 'View',
       submenu: [
-        { type: 'normal', label: 'Timeline', click: ()=>openTimeline()},
-        { type: 'normal', label: 'Pomodoro Timer', click: ()=>openPomodoroTimerWindow()},
+        { type: 'normal', label: 'Timeline', click: () => openTimeline() },
+        { type: 'normal', label: 'Pomodoro Timer', click: () => openPomodoroTimerWindow() },
+        {
+          type: 'checkbox',
+          label: 'Ring the bell when Pomodoro period ends',
+          checked: ringTheBell,
+          click: () => togglePomodoroBell(),
+        },
         { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
@@ -125,8 +130,8 @@ function getMenu(){
         { role: 'zoomIn' },
         { role: 'zoomOut' },
         { type: 'separator' },
-        { role: 'togglefullscreen' }
-      ]
+        { role: 'togglefullscreen' },
+      ],
     },
   ]
 }
@@ -204,13 +209,17 @@ async function createMainWindow () {
 }
 
 async function openWindow(page, params, options={}){
-  if (params){
+  let pageParams = { page: page }
+  if (params) {
+    let p = new URLSearchParams(params)
+    pageParams = { ...pageParams, ...Object.fromEntries(p) }
+    console.log('Params of new window:')
+    console.log(pageParams)
     params = `&${params}`
+    console.log(`tm2000-openPage: ${page}${params}`)
+  } else {
+    console.log(`tm2000-openPage: ${page}`)
   }
-  else {
-    params = ''
-  }
-  console.log(`tm2000-openPage: ${page}${params}`)
   if (toolWindows.has(page)){
     let aWindow = toolWindows.get(page);
     aWindow.show()
@@ -250,11 +259,10 @@ async function openWindow(page, params, options={}){
     //newWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     if (process.env.DEV) {
       console.log(`Loading ${page} window @ ${process.env.APP_URL}`)
-      await newWindow.loadURL(process.env.APP_URL+ `?page=${page}${params}`)
+      if (!params) params = ""
+      await newWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     } else {
-      let p2 = Object.fromEntries(new URLSearchParams(params));
-      p2.page = page;
-      await newWindow.loadFile('index.html', {query: p2})
+      await newWindow.loadFile('index.html', { query: pageParams })
     }
 
     toolWindows.set(page, newWindow)
@@ -279,13 +287,19 @@ async function openWindow(page, params, options={}){
 }
 
 async function openTaskWindow(page, params){
+  let pageParams = {page: page}
   if (params){
+    let p = new URLSearchParams(params)
+    pageParams = {...pageParams, ...Object.fromEntries(p)}
+    console.log('Params of new window:')
+    console.log(pageParams)
     params = `&${params}`
+    console.log(`tm2000-openPage: ${page}${params}`)
   }
   else {
-    params = ''
+   console.log(`tm2000-openPage: ${page}`)
   }
-  console.log(`tm2000-openPage: ${page}${params}`)
+
   if (!taskWindows.has(`${page}${params}`)) {
     let taskWindow = new BrowserWindow({
       icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
@@ -308,7 +322,7 @@ async function openTaskWindow(page, params){
     if (process.env.DEV) {
       await taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     } else {
-      await taskWindow.loadFile('index.html', {query: {page: `${page}${params}`}})
+      await taskWindow.loadFile('index.html', {query: pageParams})
     }
 
     taskWindows.set(`${page}${params}`, taskWindow)
@@ -327,13 +341,18 @@ async function openTaskWindow(page, params){
 }
 
 async function openEpicWindow(page, params){
-  if (params){
+  let pageParams = { page: page }
+  if (params) {
+    let p = new URLSearchParams(params)
+    pageParams = { ...pageParams, ...Object.fromEntries(p) }
+    console.log('Params of new window:')
+    console.log(pageParams)
     params = `&${params}`
+    console.log(`tm2000-openPage: ${page}${params}`)
+  } else {
+    console.log(`tm2000-openPage: ${page}`)
   }
-  else {
-    params = ''
-  }
-  console.log(`tm2000-openPage: ${page}${params}`)
+
   if (!epicWindows.has(`${page}${params}`)) {
     let epicWindow = new BrowserWindow({
       icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
@@ -356,7 +375,7 @@ async function openEpicWindow(page, params){
     if (process.env.DEV) {
       await epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     } else {
-      await epicWindow.loadFile('index.html', {query: {page: `${page}${params}`}})
+      await epicWindow.loadFile('index.html', { query: pageParams })
     }
     epicWindows.set(`${page}${params}`, epicWindow)
     epicWindow.on('closed', () => {
@@ -382,6 +401,15 @@ function setPomodoroLabels(position){
   saveConfiguration({pomodoroLabels: position})
   if (pomodoroWindow){
     pomodoroWindow.webContents.send('pomodoro-labels-position', pomodoroLabels)
+  }
+}
+
+function togglePomodoroBell(){
+  ringTheBell = !ringTheBell
+  saveConfiguration({'pomodoroRingTheBell': ringTheBell})
+  mainWindow.webContents.send('pomodoro-toggle-ring-the-bell', ringTheBell)
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-toggle-ring-the-bell', ringTheBell)
   }
 }
 
@@ -414,6 +442,12 @@ function getMenuPomodoroTimer() {
             { type: 'radio', label: 'Right', checked: pomodoroLabels==='right',
               click: () => setPomodoroLabels('right') },
           ],
+        },
+        {
+          type: 'checkbox',
+          label: 'Ring the bell when Pomodoro period ends',
+          checked: ringTheBell,
+          click: () => togglePomodoroBell()
         },
         { type: 'separator' },
         { role: 'reload' },

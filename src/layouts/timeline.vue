@@ -22,6 +22,11 @@ let dateRange = ref({ from: '', to: '' })
 let showReport = ref(false)
 let dataPlain = null
 let periodReport = ref('')
+let reportShowTaskKey = ref(true)
+let reportShowCommonAdmin = ref(true)
+let reportExcludeWords = ref('Meeting|Administrative')
+let reportRemoveSuffix = ref(true)
+let reportRemoveSuffixRE = ref('\\s*-\\s*\\d+/\\d+\\s*$')
 
 let chart1Data = {
   labels: [],
@@ -196,33 +201,84 @@ async function getData(dataDateRange = null) {
   inited = true
 }
 
+function dow(day) {
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]
+}
+
 function generateReport() {
   showReport.value = true
   let result = ''
-  let prevDay = 0
-  for (let aDay in dataPlain.events.week_intervals) {
-    let dayNumber = Number(aDay)
-    if (prevDay !== 0 && dayNumber - 1 !== prevDay) {
-      let dif = dayNumber - prevDay - 1
-      for (let i = 0; i < dif; i++) {
-        result += '\n'
+  console.log('generateReport')
+  console.log(dataPlain)
+  console.log(dataPlain.workDayData.projects)
+  for (let aProject in dataPlain.events.projects) {
+    if (aProject === 'Break') continue
+    let rows = []
+    let wider = 0
+    let prevDay = 0
+    for (let aDay in dataPlain.events.week_intervals) {
+      let dayNumber = Number(aDay)
+      if (prevDay !== 0 && dayNumber - 1 !== prevDay) {
+        let dayOfTheYearStr = `${prevDay}`
+        let year = dayOfTheYearStr.substring(0, 4)
+        let doy = dayOfTheYearStr.substring(4, 7)
+        let prevDate = new Date(Number(year), 0, Number(doy))
+        let dif = dayNumber - prevDay - 1
+        for (let i = 0; i < dif; i++) {
+          //result += `|       |     | |\n`
+          const newDate = new Date(prevDate)
+          newDate.setDate(newDate.getDate() + i + 1)
+          let missingMonth = `${newDate.getMonth() + 1}`.padStart(2, '0')
+          let missingDay = `${newDate.getDate()}`.padStart(2, '0')
+          let missingDOW = dow(newDate.getDay())
+          rows.push({ label: `${missingMonth}/${missingDay} | ${missingDOW}`, value: '' })
+        }
       }
+      prevDay = dayNumber
+      let dayData = dataPlain.events.week_intervals[aDay]
+      let dayTasks = []
+      for (let i = 0; i < dayData.intervals.length; i++) {
+        let interval = dayData.intervals[i]
+        if (onlyBilled.value && interval.billed == false) {
+          continue
+        }
+        if (interval.project !== aProject) {
+          continue
+        }
+        let text
+        if (reportShowTaskKey.value) text = `${interval.taskKey} / ${interval.task}`
+        else text = interval.task
+        if (reportShowCommonAdmin.value && text.match(reportExcludeWords.value)) {
+          continue
+        }
+        if (reportRemoveSuffix.value) {
+          let re = new RegExp(reportRemoveSuffixRE.value, 'gi')
+          text = text.replace(re, '')
+        }
+        if (dayTasks.indexOf(text) === -1) {
+          dayTasks.push(text)
+        }
+      }
+      let dayTasksStr = dayTasks.join(', ')
+      let reCodedDate = /(\d+)\/(\d+)-(\d+)/
+      let match = reCodedDate.exec(dayData.date_key)
+      let dayStr = `${match[1].padStart(2, '0')}/${match[2].padStart(2, '0')} | ${dow(Number(match[3]))}`
+      rows.push({ label: dayStr, value: dayTasksStr })
+      if (dayTasksStr.length > wider) {
+        wider = dayTasksStr.length
+      }
+      //result += `| ${dayStr} | ${dayTasksStr} |\n`
     }
-    prevDay = dayNumber
-    let dayData = dataPlain.events.week_intervals[aDay]
-    let dayTasks = []
-    for (let i = 0; i < dayData.intervals.length; i++) {
-      let interval = dayData.intervals[i]
-      if (onlyBilled.value && interval.billed == false) {
-        continue
-      }
-      let text = `${interval.project} / ${interval.taskKey} / ${interval.task}`
-      if (dayTasks.indexOf(text) == -1) {
-        dayTasks.push(text)
-      }
+    result += `Project: ${aProject}\n`
+    result += `${''.padStart(wider + 18, '=')}\n`
+    result += `| Date  | DOW | Description ${''.padStart(wider - 12, ' ')} |\n`
+    result += `|-------|-----|${''.padStart(wider + 2, '-')}|\n`
+    for (let i = 0; i < rows.length; i++) {
+      let row = rows[i]
+      let padding = wider - row.value.length
+      result += `| ${row.label} | ${row.value}${' '.repeat(padding)} |\n`
     }
-    let dayTasksStr = dayTasks.join(', ')
-    result += `${aDay}: ${dayTasksStr}\n`
+    result += '\n\n'
   }
   periodReport.value = result
 }
@@ -291,7 +347,21 @@ window.electronAPI.onRefreshTimeline(async () => {
   <q-toggle v-model="onlyBilled" label="Only billed projects" />
   &nbsp;&nbsp;<q-btn label="Report" color="primary" @click="generateReport()" />
   <div v-if="showReport">
-    <textarea rows="31" cols="132" v-model="periodReport"></textarea>
+    <div>
+      <br />
+      <input type="checkbox" v-model="reportShowTaskKey" name="cb_key" id="cb_key" />
+      <label for="cb_key"> Show Task's key </label>
+      <br />
+      <input type="checkbox" v-model="reportShowCommonAdmin" name="cb_common" id="cb_common" />
+      <label for="cb_common"> Exclude tasks that match this regexp </label>
+      <input v-model="reportExcludeWords" style="width: 300px" />
+      <br />
+      <input type="checkbox" v-model="reportRemoveSuffix" name="cb_suffix" id="cb_suffix" />
+      <label for="cb_suffix"> Remove this expression from task descriptions (regexp) </label>
+      <input v-model="reportRemoveSuffixRE" style="width: 300px" />
+      <br />
+    </div>
+    <pre>{{ periodReport }}</pre>
   </div>
   <div style="width: 100%">
     <!--Bar id="chart1" :data="chart1Data" :options="chart1Options" /-->

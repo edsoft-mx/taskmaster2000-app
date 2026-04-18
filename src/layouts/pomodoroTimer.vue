@@ -21,6 +21,7 @@ let pomodoroLabels = ref('bottom')
 const remainingTime = ref('00:25')
 const pomodoroSessions = ref([true, false, false, false, false, false, false, false, false])
 let flagFlashPomodoro = false
+let ringTheBell = ref(true)
 
 async function pomodoroMenuClick() {
   let recentTasks = await callApi('GET', 'user/tasks/recent/')
@@ -140,6 +141,11 @@ window.electronAPI.pomodoroLabelsPosition(async (position) => {
   pomodoroLabels.value = position
 })
 
+window.electronAPI.pomodoroToggleBell(async (flag) => {
+  console.log(`Ring the bell: ${flag}`)
+  ringTheBell.value = flag
+})
+
 onMounted(async () => {
   console.log('mounted')
   let config = await window.electronAPI.getConfiguration()
@@ -150,6 +156,7 @@ onMounted(async () => {
       return
     }
     pomodoroLabels.value = config.pomodoroLabels
+    ringTheBell.value = config.pomodoroRingTheBell
     store_configuration(config)
   }
   await init()
@@ -246,7 +253,7 @@ onMounted(async () => {
     </div>
   </div>
   <div id="hiddenStuff" style="display: none">
-    <audio id="boxRing" controls src="campana-de-box.mp3"></audio>
+    <audio id="boxRing" controls src="campana-de-box.mp3" v-if="ringTheBell"></audio>
   </div>
 </template>
 

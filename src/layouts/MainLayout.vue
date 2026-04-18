@@ -324,7 +324,7 @@
                       <q-icon
                         v-if="searchText !== ''"
                         name="close"
-                        @click="searchText='';doSearch()"
+                        @click="clearAndSearch()"
                         class="cursor-pointer"
                       />
                     </template>
@@ -351,7 +351,7 @@
 
     <q-footer class="text-white; text-align: center; bg-primary" id="mainFooter">
       <div id="hiddenStuff" style="display: none">
-        <audio id="boxRing" controls src="campana-de-box.mp3"></audio>
+        <audio id="boxRing" controls src="campana-de-box.mp3" v-if="ringTheBell"></audio>
       </div>
     </q-footer>
   </q-layout>
@@ -662,6 +662,7 @@ provide('leftDrawerOpen', leftDrawerOpen)
 provide('rightDrawerOpen', rightDrawerOpen)
 const showSubtaskNumber = ref(0)
 const timelineIncludeBreaks = ref(false)
+const ringTheBell = ref(true)
 
 let searchText = ref('')
 const credsUsername = ref('')
@@ -724,6 +725,7 @@ onMounted(async () => {
     store_configuration(config)
     credsUsername.value = config.user
     currentUsername.value = config.user
+    ringTheBell.value = config.pomodoroRingTheBell
     rightDrawerWidth.value = Number(config.rightDrawerWidth ? config.rightDrawerWidth : 500)
     if (config.apiURL) {
       apiURL.value = config.apiURL
@@ -960,6 +962,11 @@ async function doSearch() {
   if (router.currentRoute.value.fullPath.startsWith('/MainLayout/boards/')) {
     boardExecuteOp.value = { op: 'refreshData' }
   }
+}
+
+async function clearAndSearch(){
+  searchText.value = ''
+  await doSearch()
 }
 
 // function getSearchResultLabel(task){
@@ -1215,5 +1222,10 @@ window.electronAPI.pomodoroTick(async (pomodoroMsg) => {
       setPomodoroDataValues(pomodoroMsg.pomodoroData)
       break
   }
+})
+
+window.electronAPI.pomodoroToggleBell(async (flag) => {
+  console.log(`Ring the bell: ${flag}`)
+  ringTheBell.value = flag
 })
 </script>

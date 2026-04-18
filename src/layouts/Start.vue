@@ -12,6 +12,7 @@ onBeforeMount(() => {
   console.log('Before Mount')
   console.log(location.search)
   let sp = new URLSearchParams(location.search)
+
   let pageParam = sp.get('page')
   sp.delete('page')
   const params = sp.toString()
