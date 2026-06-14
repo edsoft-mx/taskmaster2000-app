@@ -351,6 +351,7 @@ async function openEpicWindow(page, params){
     console.log(`tm2000-openPage: ${page}${params}`)
   } else {
     console.log(`tm2000-openPage: ${page}`)
+    params=''
   }
 
   if (!epicWindows.has(`${page}${params}`)) {

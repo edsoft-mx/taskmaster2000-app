@@ -118,7 +118,7 @@ async function getData() {
   boardData.projects = []
   boardData.epicTasks = {}
   resetData()
-  let taskObjects= []
+  let taskObjects = []
   let epicObjects = []
   let statesObjects = []
   let projectObjects = []
@@ -128,11 +128,11 @@ async function getData() {
     `user/boards/${props.idBoard}/tasks?` +
       `filterOutOldFinishedTasks=${filterOutOldFinishedTasks.value}`,
   )
-  let apiCallBoardEpics = callApi(
-    'GET',
-    `user/boards/${props.idBoard}/epics` +
-      `?filterOutOldFinishedTasks=${filterOutOldFinishedTasks.value}`,
-  )
+  // let apiCallBoardEpics = callApi(
+  //   'GET',
+  //   `user/boards/${props.idBoard}/epics` +
+  //     `?filterOutOldFinishedTasks=${filterOutOldFinishedTasks.value}`,
+  // )
   let result = await apiCallBoard
   boardData.name = result.name
   for (let state of result.states) {
@@ -152,34 +152,47 @@ async function getData() {
   boardData.epic2domMap.clear()
 
   result = await apiCallBoardTasks
-  let filteredEpics = new Map()
-  if (result.filtered) {
-    // when applying a filter, we're going to hide any epic w/o a filtered task.
-    console.log('filtered tasks')
-    for (let task of result.tasks) {
-      if (task.idEpic) {
-        filteredEpics.set(task.idEpic, true)
-      }
-    }
-  }
-  let epics = await apiCallBoardEpics
-  for (let epic of epics) {
-    if (result.filtered) {
-      if (!filteredEpics.has(epic.idEpic)) {
-        continue
-      }
-      epic.expanded = true
-    }
-    let epicObject = new BoardEpic(epic)
-    epicObjects.push(epicObject)
-    boardData.epic2domMap.set(epic.idEpic, `epic-card-${epic.idEpic}`)
-    //updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
-  }
-
+  // let filteredEpics = new Map()
+  //if (result.filtered) {
+  // when applying a filter, we're going to hide any epic w/o a filtered task.
+  //console.log('filtered tasks')
   let activityMap = new Map()
+  console.log('searching for epics')
+  for (let task of result.tasks) {
+    if (task.taskType === 'epic') {
+      let epicObject = new BoardEpic(task)
+      epicObjects.push(epicObject)
+      boardData.epic2domMap.set(task.idTask, `epic-card-${task.idTask}`)
+      if (task.subTasks != null && task.subTasks.length > 0) {
+        for (let epicTask of task.subTasks) {
+          epicTask.idEpic = task.idTask
+          let taskObject = setTaskData(epicTask, activityMap)
+          taskObjects.push(taskObject)
+        }
+      }
+    }
+    // if (task.idEpic) {
+    //   filteredEpics.set(task.idEpic, true)
+    // }
+  }
+  // let epics = await apiCallBoardEpics
+  // for (let epic of epics) {
+  //   if (result.filtered) {
+  //     if (!filteredEpics.has(epic.idEpic)) {
+  //       continue
+  //     }
+  //     epic.expanded = true
+  //   }
+
+  //updater.set(`epic_${epic.idEpic}`,  `epic_${epic.idEpic}`)
+  //}
+
   console.log('new activityMap')
   console.log(result.tasks)
   for (let task of result.tasks) {
+    if (task.taskType === 'epic') {
+      continue
+    }
     if (result.filtered) {
       task.expanded = true
     }
@@ -199,7 +212,6 @@ async function getData() {
   currentBoardId.value = props.idBoard
   maximizedTask.value = false
   closeMaximized()
-
 }
 
 // function styleForEpicTab(epic){

@@ -61,10 +61,10 @@ class BoardProject {
 class BoardEpic{
   constructor(epic) {
     this.description= epic.description
-    this.epic= epic.epic
+    this.epic= epic.title
     this.expanded= epic.expanded
     this.idBoard = epic.idBoard
-    this.idEpic= epic.idEpic
+    this.idEpic= epic.idTask
     this.idProject= epic.idProject
     this.key= epic.key
     this.priority= epic.priority
