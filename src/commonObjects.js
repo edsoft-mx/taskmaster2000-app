@@ -1,6 +1,6 @@
 
 let allStates = []
-let stateMap = new Map()
+//let stateMap = new Map()
 let projectMap = new Map()
 let epicMap = new Map()
 let taskMap = new Map()
@@ -27,7 +27,7 @@ class BoardState {
     this.tasks = []
     this.epics = []
     allStates.push(this)
-    stateMap.set(this.state, this)
+    // stateMap.set(this.state, this)
   }
 }
 
@@ -76,8 +76,8 @@ class BoardEpic{
     this.uiKey= `${this.idEpic}`
     let prj = projectMap.get(this.idProject)
     prj.addEpic(this)
-    let state= stateMap.get(this.state)
-    state.epics.push(this)
+    // let state= stateMap.get(this.state)
+    //state.epics.push(this)
     BoardEpic.allEpics.push(this)
   }
 
@@ -86,46 +86,59 @@ class BoardEpic{
   editEpic(){
     window.electronAPI.openEpicPage(`board/${this.idBoard}/epic/${this.idEpic}`, null)
   }
-
 }
 
 class BoardTask {
+  static allTasks = []
+  static rootTasks = []
+
   constructor(task, parentTaskId=null) {
     this.setMainValues(task)
-    this.parentTaskId= parentTaskId
-    this.isRoot= parentTaskId == null && !this.idEpic
-    this.subTasks=[]
-    this.uiKeyContainer= `taskContainer-${this.idTask}`
-    this.uiKey= `task-${this.idTask}`
-    this.epic= null
-    this.parentTask= null
+    this.parentTaskId = parentTaskId
+    this.subTasks = []
+    this.isRoot= !this.hierarchy.includes('.')
+    this.isEpic= this.taskType === 'epic'
+    this.uiKeyContainer = `taskContainer-${this.idTask}`
+    this.uiKey = `task-${this.idTask}`
+    //this.epic = null
+    this.parentTask = null
     allTaskMap.set(this.idTask, this)
     BoardTask.allTasks.push(this)
     if (this.hasSubTasks) {
       for (let subtask of task.subTasks) {
-        let subTaskObject= new BoardTask(subtask, this.idTask)
-        subTaskObject.parentTask= this
+        let subTaskObject = new BoardTask(subtask, this.idTask)
+        subTaskObject.parentTask = this
         this.subTasks.push(subTaskObject)
       }
     }
-    if (parentTaskId==null) {
-      if (this.idEpic){
-        let epic= epicMap.get(this.idEpic)
-        if (epic==null){
-          console.log(`Could not find epic ${this.idEpic} for task ${this.idTask}`)
-        }
-        epic.subTasks.push(this)
-        this.epic= epic
-      }
-      else {
-        BoardTask.rootTasks.push(this)
-        taskMap.set(this.idTask, this)
-        let state= stateMap.get(this.state)
-        state.tasks.push(this)
-      }
-      let project = projectMap.get(this.idProject)
-      project.addTask(this)
+    if (this.isRoot){
+      BoardTask.rootTasks.push(this)
     }
+
+    //}
+    // let state = stateMap.get(this.state)
+    // state.tasks.push(this)
+    // let project = projectMap.get(this.idProject)
+    // project.addTask(this)
+
+    // if (parentTaskId==null) {
+    //   if (this.idEpic){
+    //     let epic= epicMap.get(this.idEpic)
+    //     if (epic==null){
+    //       console.log(`Could not find epic ${this.idEpic} for task ${this.idTask}`)
+    //     }
+    //     epic.subTasks.push(this)
+    //     this.epic= epic
+    //   }
+    //   else {
+    //     BoardTask.rootTasks.push(this)
+    //     taskMap.set(this.idTask, this)
+    //     let state= stateMap.get(this.state)
+    //     state.tasks.push(this)
+    //   }
+    //   let project = projectMap.get(this.idProject)
+    //   project.addTask(this)
+    // }
   }
 
   updateUIElements(){
@@ -166,7 +179,7 @@ class BoardTask {
     this.hierarchy= data.hierarchy
     this.icon= data.icon
     this.idBoard= data.idBoard
-    this.idEpic= data.idEpic
+    //this.idEpic= data.idEpic
     this.idProject= data.idProject
     this.idTags= data.idTags
     this.idTask= data.idTask
@@ -190,7 +203,7 @@ class BoardTask {
 
   //updateData(newData, parentTaskId=null){
   updateData(newData){
-    let previousState = this.state
+    // let previousState = this.state
     this.setMainValues(newData)
     //this.parentTask= parentTaskId
     //this.isRoot= parentTaskId == null && !this.idEpic
@@ -203,22 +216,21 @@ class BoardTask {
     //   }
     // }
     //if (parentTaskId==null && previousState != this.state) {
-    if (previousState != this.state) {
-      let stateP = stateMap.get(previousState)
-      let idx= stateP.tasks.findIndex((t)=> t.idTask === this.idTask)
-      if (idx!=-1) {
-        stateP.tasks.splice(idx,1)
-      }
-      let state= stateMap.get(this.state)
-      let idx2= state.tasks.findIndex((t)=> t.idTask === this.idTask)
-      if (idx2==-1) {
-        state.tasks.push(this)
-      }
-    }
-  }
 
-  static rootTasks = []
-  static allTasks = []
+
+    // if (previousState != this.state) {
+    //   let stateP = stateMap.get(previousState)
+    //   let idx= stateP.tasks.findIndex((t)=> t.idTask === this.idTask)
+    //   if (idx!=-1) {
+    //     stateP.tasks.splice(idx,1)
+    //   }
+    //   let state= stateMap.get(this.state)
+    //   let idx2= state.tasks.findIndex((t)=> t.idTask === this.idTask)
+    //   if (idx2==-1) {
+    //     state.tasks.push(this)
+    //   }
+    // }
+  }
 
   static getCalendarFormat(aDate){
     if (aDate!=null){
@@ -238,14 +250,11 @@ class BoardTask {
   }
 
   editTask(){
-    if (this.parentTask==null) {
-      console.log(`board/${this.idBoard}/task/${this.idTask}/-1`)
-      window.electronAPI.openTaskPage(`board/${this.idBoard}/task/${this.idTask}/-1`, null)
-    }
-    else{
-      console.log(`board/${this.idBoard}/task/${this.parentTaskId}/${this.idTask}`)
-      window.electronAPI.openTaskPage(`board/${this.idBoard}/task/${this.parentTaskId}/${this.idTask}`, null)
-    }
+    const params = new URLSearchParams({
+      idBoard: this.idBoard,
+      hierarchy: this.hierarchy,
+    })
+    window.electronAPI.openTaskPage('newTask', `${params}`)
   }
 
   async timerClick(){
@@ -308,7 +317,7 @@ class BoardTask {
 
 function resetData(){
   allStates = []
-  stateMap.clear()
+  //stateMap.clear()
   projectMap.clear()
   epicMap.clear()
   taskMap.clear()
@@ -318,4 +327,5 @@ function resetData(){
   BoardTask.rootTasks = []
 }
 
-export { allStates, taskMap, allTaskMap, projectMap, stateMap, epicMap, BoardState, BoardProject, BoardEpic, BoardTask, resetData }
+export { allStates, taskMap, allTaskMap, projectMap, epicMap, BoardState, BoardProject, BoardEpic, BoardTask, resetData }
+//stateMap,

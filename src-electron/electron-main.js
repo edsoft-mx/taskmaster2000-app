@@ -42,8 +42,10 @@ let pomodoroLabels = 'bottom';
 let ringTheBell = true;
 let toolWindows = new Map()
 let taskWindows = new Map()
-let epicWindows = new Map()
+// let epicWindows = new Map()
 let timeLineData = null;
+let globalCacheData = new Map()
+let globalCachePending = new Map()
 // const hostname = os.hostname();
 
 function getCookie(event, name) {
@@ -292,12 +294,16 @@ async function openTaskWindow(page, params){
     let p = new URLSearchParams(params)
     pageParams = {...pageParams, ...Object.fromEntries(p)}
     console.log('Params of new window:')
+    delete pageParams.page
+    pageParams.component = 'taskEditor'
     console.log(pageParams)
     params = `&${params}`
     console.log(`tm2000-openPage: ${page}${params}`)
   }
   else {
-   console.log(`tm2000-openPage: ${page}`)
+    console.log(`tm2000-openPage (np): ${page}`)
+    //pageParams.component = 'taskEditor'
+    params=''
   }
 
   if (!taskWindows.has(`${page}${params}`)) {
@@ -320,8 +326,9 @@ async function openTaskWindow(page, params){
     })
     //taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
     if (process.env.DEV) {
-      await taskWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+      await taskWindow.loadURL(process.env.APP_URL + `?component=taskEditor${params}`)
     } else {
+      console.log(`Loading index.html with ${pageParams}`)
       await taskWindow.loadFile('index.html', {query: pageParams})
     }
 
@@ -340,58 +347,58 @@ async function openTaskWindow(page, params){
   }
 }
 
-async function openEpicWindow(page, params){
-  let pageParams = { page: page }
-  if (params) {
-    let p = new URLSearchParams(params)
-    pageParams = { ...pageParams, ...Object.fromEntries(p) }
-    console.log('Params of new window:')
-    console.log(pageParams)
-    params = `&${params}`
-    console.log(`tm2000-openPage: ${page}${params}`)
-  } else {
-    console.log(`tm2000-openPage: ${page}`)
-    params=''
-  }
-
-  if (!epicWindows.has(`${page}${params}`)) {
-    let epicWindow = new BrowserWindow({
-      icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
-      width: 1024,
-      height: 600,
-      useContentSize: true,
-      webPreferences: {
-        contextIsolation: true,
-        // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-        preload: path.resolve(
-          currentDir,
-          path.join(
-            process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
-            'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
-          ),
-        ),
-      },
-    })
-    //epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
-    if (process.env.DEV) {
-      await epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
-    } else {
-      await epicWindow.loadFile('index.html', { query: pageParams })
-    }
-    epicWindows.set(`${page}${params}`, epicWindow)
-    epicWindow.on('closed', () => {
-      // if (mainWindow){
-      //   mainWindow.webContents.send('updateBoard')
-      // }
-      epicWindows.delete(`${page}${params}`);
-    })
-  }
-  else{
-    let aEpicWindow = epicWindows.get(`${page}${params}`);
-    aEpicWindow.show()
-    aEpicWindow.focus()
-  }
-}
+// async function openEpicWindow(page, params){
+//   let pageParams = { page: page }
+//   if (params) {
+//     let p = new URLSearchParams(params)
+//     pageParams = { ...pageParams, ...Object.fromEntries(p) }
+//     console.log('Params of new window:')
+//     console.log(pageParams)
+//     params = `&${params}`
+//     console.log(`tm2000-openPage: ${page}${params}`)
+//   } else {
+//     console.log(`tm2000-openPage: ${page}`)
+//     params=''
+//   }
+//
+//   if (!epicWindows.has(`${page}${params}`)) {
+//     let epicWindow = new BrowserWindow({
+//       icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
+//       width: 1024,
+//       height: 600,
+//       useContentSize: true,
+//       webPreferences: {
+//         contextIsolation: true,
+//         // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
+//         preload: path.resolve(
+//           currentDir,
+//           path.join(
+//             process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+//             'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+//           ),
+//         ),
+//       },
+//     })
+//     //epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+//     if (process.env.DEV) {
+//       await epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
+//     } else {
+//       await epicWindow.loadFile('index.html', { query: pageParams })
+//     }
+//     epicWindows.set(`${page}${params}`, epicWindow)
+//     epicWindow.on('closed', () => {
+//       // if (mainWindow){
+//       //   mainWindow.webContents.send('updateBoard')
+//       // }
+//       epicWindows.delete(`${page}${params}`);
+//     })
+//   }
+//   else{
+//     let aEpicWindow = epicWindows.get(`${page}${params}`);
+//     aEpicWindow.show()
+//     aEpicWindow.focus()
+//   }
+// }
 
 function openTimeline(){
   openWindow('timeline')
@@ -524,6 +531,7 @@ async function initGRPC(){
 
 async function initHandlers(){
   ipcMain.handle('function:getCookie', getCookie)
+  ipcMain.handle('function:getFromGlobalCache', getFromGlobalCache)
   ipcMain.on('tm2000-openPage', (event, page, params=null)=>{
     openWindow(page, params)
   })
@@ -531,7 +539,7 @@ async function initHandlers(){
     openTaskWindow(page, params)
   })
   ipcMain.on('tm2000-openEpicPage', (event, page, params=null)=>{
-    openEpicWindow(page, params)
+    openTaskWindow(page, params)
   })
   ipcMain.on('open-external-link', (event, url)=>{
     shell.openExternal(url);
@@ -566,6 +574,9 @@ async function initHandlers(){
   })
   ipcMain.on('pomodoro-menu-click', (event, tasks) => {
     showPomodoroMenu(tasks)
+  })
+  ipcMain.on('store-on-global-cache', (event, kind, id, data) => {
+    storeOnGlobalCache(kind, id, data)
   })
   addPomodoroTickSubscriber((message)=>{
     mainWindow.webContents.send('pomodoro-tick', message)
@@ -724,3 +735,62 @@ function epicWatcherStreamingCall(client, user) {
   }
   connect()
 }
+
+export const globalCache = {
+  set(kind, key, value) {
+    let aKindStore = null
+    if (!globalCacheData.has(kind)) {
+      aKindStore = new Map()
+      globalCacheData.set(kind, aKindStore)
+    } else {
+      aKindStore = globalCacheData.get(kind)
+    }
+    aKindStore.set(key, value)
+
+    let fullKey = `${kind}-${key}`
+    // Si alguien estaba esperando esta llave, resolver su promesa
+    if (globalCachePending.has(fullKey)) {
+      globalCachePending.get(fullKey).resolve(value)
+      globalCachePending.delete(fullKey)
+    }
+  },
+
+  get(key) {
+    return globalCacheData.get(key)
+  },
+
+  // Espera hasta que la llave exista
+  waitFor(kind, key, timeout = 5000) {
+    if (globalCacheData.has(kind)) {
+      let aKindStore = globalCacheData.get(kind)
+      if (aKindStore.has(key)) {
+        return Promise.resolve(aKindStore.get(key))
+      }
+    }
+
+    let fullKey = `${kind}-${key}`
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        globalCachePending.delete(fullKey)
+        reject(new Error(`Cache timeout: key "${fullKey}" never arrived`))
+      }, timeout)
+
+      globalCachePending.set(fullKey, {
+        resolve: (value) => {
+          clearTimeout(timer)
+          resolve(value)
+        },
+      })
+    })
+  },
+}
+
+async function storeOnGlobalCache(kind, id, data){
+  globalCache.set(kind, id, data)
+}
+
+async function getFromGlobalCache(event, kind, id) {
+  let result = await globalCache.waitFor(kind, id)
+  return result
+}
+

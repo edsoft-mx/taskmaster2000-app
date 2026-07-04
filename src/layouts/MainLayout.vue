@@ -703,18 +703,19 @@ const remainingTime = ref('00:25')
 const pomodoroSessions = ref([true, false, false, false, false, false, false, false, false])
 
 onBeforeMount(() => {
-  console.log('Before Mount')
+  //console.log('mainLayout.Before Mount')
   let sp = new URLSearchParams(location.search)
   let pageParam = sp.get('page')
   sp.delete('page')
   const params = sp.toString()
-  if (pageParam) {
+  if (pageParam && params) {
+    console.log(`Pushing to the router: path: /${pageParam}, query: ${params}`)
     router.push({ path: `/${pageParam}`, query: params })
   }
 })
 
 onMounted(async () => {
-  console.log('mounted')
+  console.log('mainLayout.mounted')
   let config = await window.electronAPI.getConfiguration()
   if (config) {
     console.log('Loaded configuration')
@@ -773,7 +774,7 @@ async function doLogin() {
 // }
 
 async function getData() {
-  console.log('Hello')
+  console.log('Hello (from main)')
   loadComplete = false
   let whoami = await callApi('GET', 'whoami')
   if (!whoami) {
@@ -807,7 +808,7 @@ async function getData() {
   //allProjects = await callApi('GET', 'user/projects')
   //let workingToday = await callApi("GET", 'user/spent_time/today')
   //setWorkingToday(workingToday)
-  console.log('end getData()')
+  console.log('main.end-getData()')
   loadComplete = true
 }
 
@@ -917,10 +918,12 @@ watch(filterByStartOrDue, async (newVal) => {
 })
 
 watch(currentBoard, async (newVal) => {
+  console.log(`main-watch-currentBoard: ${newVal}`)
   await readTaskQueue(newVal)
 })
 
 async function readTaskQueue(board) {
+  console.log('main.readTaskQueue')
   queueSelectedTask.value = null
   let boardQueue = []
   let queue = await callApi('GET', `user/boards/${board}/queue/`)
@@ -928,12 +931,14 @@ async function readTaskQueue(board) {
     taskQueue.value = boardQueue
     return
   }
+  let boardTaskMap = await window.electronAPI.getFromGlobalCache('board', 'tasksMap')
+  // console.log(boardTaskMap)
   for (let element of queue.queue) {
-    if (!allTaskMap.has(element)) {
+    if (!boardTaskMap.has(element)) {
       console.log('There is no task map for element in queue', element)
       continue
     }
-    let theTask = allTaskMap.get(element)
+    let theTask = boardTaskMap.get(element)
     boardQueue.push(theTask)
   }
   taskQueue.value = boardQueue
@@ -964,7 +969,7 @@ async function doSearch() {
   }
 }
 
-async function clearAndSearch(){
+async function clearAndSearch() {
   searchText.value = ''
   await doSearch()
 }

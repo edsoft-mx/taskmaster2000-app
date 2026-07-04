@@ -2,7 +2,7 @@
 import TMEpic from 'components/tmEpic.vue'
 import TMTask from 'components/tmTask.vue'
 import { callApi } from 'src/common'
-import { useUISessionStore } from 'stores/ui_state'
+// import { useUISessionStore } from 'stores/ui_state'
 import { computed, ref } from 'vue'
 
 defineOptions({
@@ -42,7 +42,7 @@ const props = defineProps({
   },
 })
 
-const uiStore = useUISessionStore()
+// const uiStore = useUISessionStore()
 let stateDisplayLimit = ref(new Map())
 let stateTasksLength = ref(new Map())
 let dragInitialState = ''
@@ -136,31 +136,21 @@ let tasksIndexed = computed(() => {
 
 function newTask(state) {
   let idBoard = props.idBoard //tasksIndexed.value.get(state)[0].idBoard
+  let hierarchy
   console.log(state.state, idBoard, props.parent)
-  const params = new URLSearchParams({
-    state: state.state,
-  })
   if (props.parent == null || (props.parent.idTask == null && props.parent.idEpic == null)) {
     console.log('new root task')
-    window.electronAPI.openTaskPage(`board/${idBoard}/task/0/-1`, `${params}`)
-  } else if (props.parent.idEpic != null) {
-    console.log('new epic task')
-    window.electronAPI.openTaskPage(
-      `board/${idBoard}/epic/${props.parent.idEpic}/0/-1`,
-      `${params}`,
-    )
+    hierarchy = '0'
   } else {
     console.log('new subtask')
-    window.electronAPI.openTaskPage(`board/${idBoard}/task/${props.parent.idTask}/0`, `${params}`)
+    hierarchy = `${props.parent.hierarchy}.0`
   }
-}
-
-function newEpic(state) {
-  let idBoard = props.idBoard // tasksIndexed.value.get(state)[0].idBoard
   const params = new URLSearchParams({
     state: state.state,
+    idBoard: idBoard,
+    hierarchy: hierarchy
   })
-  window.electronAPI.openEpicPage(`board/${idBoard}/epic/0`, `${params}`)
+  window.electronAPI.openTaskPage('newTask', `${params}`)
 }
 
 function dragOverStateColumn(event) {
@@ -217,21 +207,21 @@ async function dropOverStateColumn(event) {
   if (isValid) {
     console.log(`DROP! task: ${data.id}.state = ${data.state} -> ${dropTarget.id}`)
     let dropResult
-    if (data.kind === 'task') {
-      dropResult = await callApi('POST', `user/boards/${data.board}/tasks/${data.id}/dragged_to`, {
-        target: dropTarget.id,
-        idBoard: data.board,
-      })
-    } else if (data.kind === 'epic') {
-      dropResult = await callApi('POST', `user/boards/${data.board}/epics/${data.id}/dragged_to`, {
-        target: dropTarget.id,
-        idBoard: data.board,
-      })
-      // location.reload()
-      return
-    }
-    console.log(dropResult)
-    uiStore.setNewState4Task(data.id, dropResult.task.state)
+    //if (data.kind === 'task') {
+    dropResult = await callApi('POST', `user/boards/${data.board}/tasks/${data.id}/dragged_to`, {
+      target: dropTarget.id,
+      idBoard: data.board,
+    })
+    // } else if (data.kind === 'epic') {
+    //   dropResult = await callApi('POST', `user/boards/${data.board}/epics/${data.id}/dragged_to`, {
+    //     target: dropTarget.id,
+    //     idBoard: data.board,
+    //   })
+    // location.reload()
+    //   return
+    // }
+    //console.log(dropResult)
+    // uiStore.setNewState4Task(data.id, dropResult.task.state)
 
     console.log(dropResult)
     // if (dropResult.newParent){
@@ -319,7 +309,7 @@ function dragEpic(event, epic) {
   console.log('dragEpic')
   console.log(epic)
   let data = {
-    id: epic.idEpic,
+    id: epic.idTask,
     kind: 'epic',
     state: epic.state,
     project: epic.idProject,
@@ -369,6 +359,7 @@ function dropTargetIsValid(id, data = null) {
   //console.log(`drop1: id != dragInitialState: ${id} != ${dragInitialState}`)
   let differentState = id !== dragInitialState
   if (data) {
+    console.log(data)
     let extractor = /(main_|epic_\d+_|task_\d+_)(.+)/
     let match = extractor.exec(id)
     differentState = data.state.replace(' ', '_') !== match[2]
@@ -499,7 +490,7 @@ function showLess(state) {
       <div :class="`state_${state.state}`" :id="`container_${state.state.replace(' ', '_')}`">
         <div v-for="epic in epicsIndexed.get(state.state)" :key="epic.uiKey">
           <TMEpic
-            :id="`epic-card-${epic.idEpic}`"
+            :id="`epic-card-${epic.idTask}`"
             :epic="epic"
             v-show="epic.displayIndex < stateDisplayLimit.get(state.state) || epic.ghost"
             @go-to-detail-epic="$emit('go-to-detail-epic', epic)"
@@ -524,11 +515,11 @@ function showLess(state) {
           />
         </div>
         <div class="newTask" v-if="state.start">
-          <a href=":newTask" @click="newTask(state)" @click.prevent>+ Add a new task</a>
+          <a href=":newTask" @click="newTask(state)" @click.prevent>+ Add a new work item</a>
         </div>
-        <div class="newTask" v-if="state.start && parent == null">
+        <!--div class="newTask" v-if="state.start && parent == null">
           <a href=":newEpic" @click="newEpic(state)" @click.prevent>+ Add a new epic</a>
-        </div>
+        </div-->
         <div class="newTask" v-if="stateTasksLength.get(state.state) > 7">
           Show...
           <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state)">

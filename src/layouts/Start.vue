@@ -9,20 +9,39 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 onBeforeMount(() => {
-  console.log('Before Mount')
+  console.log('start.BeforeMount')
   console.log(location.search)
   let sp = new URLSearchParams(location.search)
+  const obj = Object.fromEntries(sp)
+  console.log(obj)
+  if (obj.page != null) {
+    console.log('obj.page')
+    let pageParam = sp.get('page')
+    sp.delete('page')
+    const params = sp.toString()
+    console.log('pageParam', pageParam)
+    console.log('params', params)
 
-  let pageParam = sp.get('page')
-  sp.delete('page')
-  const params = sp.toString()
-  console.log('pageParam', pageParam)
-  console.log('params', params)
-
-  if (pageParam) {
-    router.push({ path: `/${pageParam}`, query: params })
+    if (pageParam) {
+      router.push({ path: `/${pageParam}`, query: params })
+    } else {
+      router.push({ path: '/MainLayout' })
+    }
   } else {
-    router.push({ path: '/MainLayout' })
+    console.log('obj.component')
+    let component = sp.get('component')
+    if (component === 'taskEditor') {
+      router.push({
+        name: 'taskEditor',
+        params: {
+          idBoard: sp.get('idBoard'),
+          hierarchy: sp.get('hierarchy'),
+        },
+        query: {
+          state: sp.get('state'),
+        },
+      })
+    }
   }
 })
 </script>
