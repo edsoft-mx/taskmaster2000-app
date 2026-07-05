@@ -21,11 +21,12 @@ import {
   projectMap,
   BoardState,
   BoardProject,
-//  BoardEpic,
+  //  BoardEpic,
   BoardTask,
   resetData,
   allTaskMap,
   epicMap,
+  taskIndexMap,
 } from 'src/commonObjects'
 import TMKanban from 'components/tmKanban.vue'
 import TMTaskContainer from 'components/tmTaskContainer.vue'
@@ -134,14 +135,15 @@ function updateActivityDate(map, kind, date) {
   map.set(baseDate, state)
 }
 
-function processSubTasks(workItem, taskList) {
+function processSubTasks(workItem) {
+  //, taskList
   if ('subTasks' in workItem) {
     for (let item of workItem.subTasks) {
       let taskObject = new BoardTask(item)
       allTaskMap.set(item.idTask, taskObject)
       boardData.itemHierarchyMapping.set(taskObject.hierarchy, taskObject.idTask)
-      taskList.push(taskObject)
-      processSubTasks(item, taskList)
+      //taskList.push(taskObject)
+      processSubTasks(item) //, taskList)
     }
   }
 }
@@ -189,7 +191,7 @@ async function getData() {
   // boardData.epic2domMap.clear()
   allTaskMap.clear()
   let boardTasks = await apiCallBoardTasks
-  let allTasks = []
+  //let allTasks = []
   // let filteredEpics = new Map()
   //if (result.filtered) {
   // when applying a filter, we're going to hide any epic w/o a filtered task.
@@ -199,9 +201,9 @@ async function getData() {
   for (let task of boardTasks.tasks) {
     boardData.itemHierarchyMapping.set(task.hierarchy, task.idTask)
     let taskObject = new BoardTask(task)
-    allTasks.push(taskObject)
+    //allTasks.push(taskObject)
     allTaskMap.set(task.idTask, taskObject)
-    processSubTasks(task, allTasks)
+    processSubTasks(task) //, allTasks)
   }
   console.log('slow 2')
   await window.electronAPI.storeOnGlobalCache('board', 'tasks', BoardTask.allTasks)
@@ -572,69 +574,119 @@ async function updateTask(idTask) {
       task.parentTask = parent
     }
   }
-  if (task.hierarchy.includes('.') && !task.hierarchy.startsWith('e')) {
-    console.log('This is a subtask, parent is a root task. Trying to force parent task update')
-    let ptIdx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
-    let idx = boardData.workItems[ptIdx].subTasks.findIndex((t) => t.idTask == idTask)
-    console.log(`${ptIdx}-${idx}`)
-    boardData.workItems[ptIdx].subTasks.splice(idx, 1, { ...task, state: task.state })
-    console.log(`Updating task @ index ${ptIdx}`)
-    if (maximizedTaskRef.value != null && task.parentTask.idTask == maximizedTaskRef.value.idTask) {
-      maximizedTaskRef.value = task.parentTask
+  let hierarchyParts = task.hierarchy.split('.')
+  let level0Idx
+  let level1Idx
+  let idx
+  let checkMaximized = []
+  switch (hierarchyParts.length) {
+    case 1:
+      // root task
+      checkMaximized.push(task.idTask)
+      console.log('This is a root task')
+      boardData.workItems = BoardTask.rootTasks.slice()
       await nextTick()
-    }
-    await nextTick()
-  } else if (task.isRoot) {
-    // root task
-    console.log('This is a root task')
-    boardData.workItems = BoardTask.rootTasks.slice()
-    await nextTick()
-  } else if (
-    task.hierarchy.includes('.') &&
-    task.hierarchy.startsWith('e') &&
-    task.hierarchy.split('.').length - 1 === 1
-  ) {
-    console.log('This is an Epic task, searching parent epic...')
-    let ptIdx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
-    let idx = boardData.workItems[ptIdx].subTasks.findIndex((t) => t.idTask == idTask)
-    console.log(`${ptIdx}-${idx}`)
-    boardData.workItems[ptIdx].subTasks.splice(idx, 1, { ...task, state: task.state })
-    console.log(`Updating task @ index ${ptIdx}`)
-    if (maximizedTaskRef.value != null && task.parentTask.idTask == maximizedTaskRef.value.idTask) {
-      maximizedTaskRef.value = task.parentTask
+      break
+    case 2:
+      checkMaximized.push(task.parentTask.idTask)
+      checkMaximized.push(task.idTask)
+      level0Idx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
+      idx = boardData.workItems[level0Idx].subTasks.findIndex((t) => t.idTask == idTask)
+      console.log(`${level0Idx}-${idx}`)
+      boardData.workItems[level0Idx].subTasks.splice(idx, 1, { ...task, state: task.state })
+      console.log(`Updating task @ index ${level0Idx}`)
       await nextTick()
-    }
-    await nextTick()
-  } else if (
-    task.hierarchy.includes('.') &&
-    task.hierarchy.startsWith('e') &&
-    task.hierarchy.split('.').length - 1 > 1
-  ) {
-    console.log(
-      'This is a subtask, which parent task has an epic',
-      task.parentTask.parentTask.idTask,
-    )
-    let epicIdx = boardData.workItems.findIndex(
-      (e) => e.idTask == task.parentTask.parentTask.idTask,
-    )
-    console.log('found epic', epicIdx)
-    console.log(boardData.workItems[epicIdx])
-    let ptaskIdx = boardData.workItems[epicIdx].subTasks.findIndex(
-      (t) => t.idTask == task.parentTask.idTask,
-    )
-    console.log('found parent task', ptaskIdx)
-    let taskIdx = boardData.workItems[epicIdx].subTasks[ptaskIdx].subTasks.findIndex(
-      (t) => t.idTask == task.idTask,
-    )
-    console.log(boardData.workItems[epicIdx].subTasks[ptaskIdx])
-    console.log('found parent task', taskIdx)
-    boardData.workItems[epicIdx].subTasks[ptaskIdx].subTasks.splice(taskIdx, 1, {
-      ...task,
-      state: task.state,
-    })
-  } else {
-    console.log("don't know which kind of task is this")
+      break
+    default:
+      checkMaximized.push(task.parentTask.parentTask.idTask)
+      checkMaximized.push(task.parentTask.idTask)
+      checkMaximized.push(task.idTask)
+      level0Idx = boardData.workItems.findIndex(
+        (t) => t.idTask == task.parentTask.parentTask.idTask,
+      )
+      level1Idx = boardData.workItems[level0Idx].subTasks.findIndex(
+        (t) => t.idTask == task.parentTask.idTask,
+      )
+      idx = boardData.workItems[level0Idx].subTasks[level1Idx].subTasks.findIndex(
+        (t) => t.idTask == task.idTask,
+      )
+      boardData.workItems[level0Idx].subTasks[level1Idx].subTasks.splice(idx, 1, {
+        ...task,
+        state: task.state,
+      })
+      break
   }
+  for (let idMax in checkMaximized) {
+    if (maximizedTaskRef.value != null && idMax == maximizedTaskRef.value.idTask) {
+      maximizedTaskRef.value = idMax
+      await nextTick()
+      break
+    }
+  }
+
+  // if (task.hierarchy.includes('.') && !task.hierarchy.startsWith('e')) {
+  //   console.log('This is a subtask, parent is a root task. Trying to force parent task update')
+  //   let ptIdx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
+  //   let idx = boardData.workItems[ptIdx].subTasks.findIndex((t) => t.idTask == idTask)
+  //   console.log(`${ptIdx}-${idx}`)
+  //   boardData.workItems[ptIdx].subTasks.splice(idx, 1, { ...task, state: task.state })
+  //   console.log(`Updating task @ index ${ptIdx}`)
+  //   if (maximizedTaskRef.value != null && task.parentTask.idTask == maximizedTaskRef.value.idTask) {
+  //     maximizedTaskRef.value = task.parentTask
+  //     await nextTick()
+  //   }
+  //   await nextTick()
+  // } else if (task.isRoot) {
+  //   // root task
+  //   console.log('This is a root task')
+  //   boardData.workItems = BoardTask.rootTasks.slice()
+  //   await nextTick()
+  // } else if (
+  //   task.hierarchy.includes('.') &&
+  //   task.hierarchy.startsWith('e') &&
+  //   task.hierarchy.split('.').length - 1 === 1
+  // ) {
+  //   console.log('This is an Epic task, searching parent epic...')
+  //   let ptIdx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
+  //   let idx = boardData.workItems[ptIdx].subTasks.findIndex((t) => t.idTask == idTask)
+  //   console.log(`${ptIdx}-${idx}`)
+  //   boardData.workItems[ptIdx].subTasks.splice(idx, 1, { ...task, state: task.state })
+  //   console.log(`Updating task @ index ${ptIdx}`)
+  //   if (maximizedTaskRef.value != null && task.parentTask.idTask == maximizedTaskRef.value.idTask) {
+  //     maximizedTaskRef.value = task.parentTask
+  //     await nextTick()
+  //   }
+  //   await nextTick()
+  // } else if (
+  //   task.hierarchy.includes('.') &&
+  //   task.hierarchy.startsWith('e') &&
+  //   task.hierarchy.split('.').length - 1 > 1
+  // ) {
+  //   console.log(
+  //     'This is a subtask, which parent task has an epic',
+  //     task.parentTask.parentTask.idTask,
+  //   )
+  //   let epicIdx = boardData.workItems.findIndex(
+  //     (e) => e.idTask == task.parentTask.parentTask.idTask,
+  //   )
+  //   console.log('found epic', epicIdx)
+  //   console.log(boardData.workItems[epicIdx])
+  //   let ptaskIdx = boardData.workItems[epicIdx].subTasks.findIndex(
+  //     (t) => t.idTask == task.parentTask.idTask,
+  //   )
+  //   console.log('found parent task', ptaskIdx)
+  //   let taskIdx = boardData.workItems[epicIdx].subTasks[ptaskIdx].subTasks.findIndex(
+  //     (t) => t.idTask == task.idTask,
+  //   )
+  //   console.log(boardData.workItems[epicIdx].subTasks[ptaskIdx])
+  //   console.log('found parent task', taskIdx)
+  //   boardData.workItems[epicIdx].subTasks[ptaskIdx].subTasks.splice(taskIdx, 1, {
+  //     ...task,
+  //     state: task.state,
+  //   })
+  // } else {
+  //   console.log("don't know which kind of task is this")
+  // }
   if (task.idTask === selectedTask.value?.idTask) {
     selectedTask.value = null
     globalSelectedTask.value = null
@@ -655,45 +707,83 @@ async function removeTask(idTask) {
   if (task == null) {
     return
   }
-  if (task.parentTask != null && task.parentTask.idEpic == null) {
-    console.log('This is a subtask, parent is a root task.')
-    let ptIdx = boardData.tasks.findIndex((t) => t.idTask == task.parentTask.idTask)
-    let tIdx = boardData.tasks[ptIdx].subTasks.findIndex((t) => t.idTask == task.idTask)
-    boardData.tasks[ptIdx].subTasks.splice(tIdx, 1)
-    console.log(`Updating task @ index ${ptIdx}`)
-    await nextTick()
-  } else if (task.parentTask == null && task.idEpic == null) {
-    console.log('This is a root task')
-    let tIdx = boardData.tasks.findIndex((t) => t.idTask == task.idTask)
-    boardData.tasks.splice(tIdx, 1)
-    await nextTick()
-  } else if (task.parentTask == null && task.idEpic != null && !task.isRoot) {
-    console.log('This is an Epic task, searching parent epic...')
-    let epic = boardData.epics.find((e) => e.idEpic === task.idEpic)
-    console.log('found epic')
-    console.log(epic)
-    let tIdx = epic.subTasks.findIndex((t) => t.idTask == task.idTask)
-    epic.subTasks.splice(tIdx, 1)
-    await nextTick()
-  } else if (task.parentTask != null && task.parentTask.idEpic != null && !task.isRoot) {
-    console.log('This is a subtask, which parent task has an epic')
-    let epic = boardData.epics.find((e) => e.idEpic === task.parentTask.idEpic)
-    console.log('found epic', epic)
-    let ptask = epic.subTasks.find((t) => t.idTask == task.parentTask.idTask)
-    console.log('found parent task', ptask)
-    let tIdx = ptask.subTasks.findIndex((t) => t.idTask == task.idTask)
-    ptask.subTasks.splice(tIdx, 1)
-  } else {
-    console.log("don't know which kind of task is this")
+  let hierarchyParts = task.hierarchy.split('.')
+  let level0Idx
+  let level1Idx
+  let idx
+  switch (hierarchyParts.length) {
+    case 1:
+      // root task
+      console.log('This is a root task')
+      idx = boardData.workItems.findIndex((t) => t.idTask == task.idTask)
+      boardData.workItems.splice(idx, 1)
+      idx = BoardTask.rootTasks.findIndex((t) => t.idTask === idTask)
+      BoardTask.rootTasks.splice(idx, 1)
+      break
+    case 2:
+      level0Idx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
+      idx = boardData.workItems[level0Idx].subTasks.findIndex((t) => t.idTask == idTask)
+      boardData.workItems[level0Idx].subTasks.splice(idx, 1)
+      break
+    default:
+      level0Idx = boardData.workItems.findIndex(
+        (t) => t.idTask == task.parentTask.parentTask.idTask,
+      )
+      level1Idx = boardData.workItems[level0Idx].subTasks.findIndex(
+        (t) => t.idTask == task.parentTask.idTask,
+      )
+      idx = boardData.workItems[level0Idx].subTasks[level1Idx].subTasks.findIndex(
+        (t) => t.idTask == task.idTask,
+      )
+      boardData.workItems[level0Idx].subTasks[level1Idx].subTasks.splice(idx, 1)
+      break
   }
-  if (task.idTask === selectedTask.value?.idTask) {
-    selectedTask.value = null
-    globalSelectedTask.value = null
-    await nextTick()
+  idx = BoardTask.allTasks.findIndex((t) => t.idTask === idTask)
+  BoardTask.allTasks.splice(idx, 1)
+  if (taskIndexMap.has(idTask)) {
+    taskIndexMap.delete(idTask)
   }
-  let taskIdx = BoardTask.allTasks.findIndex((t) => t.idTask === idTask)
-  BoardTask.allTasks.splice(taskIdx, 1)
-  console.log('finish updateTask.delete')
+
+  //   if (task.hierarchy.includes('.') && !task.hierarchy.startsWith('e')) {
+  //     console.log('This is a subtask, parent is a root task.')
+  //     let ptIdx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
+  //     let tIdx = boardData.workItems[ptIdx].subTasks.findIndex((t) => t.idTask == task.idTask)
+  //     boardData.workItems[ptIdx].subTasks.splice(tIdx, 1)
+  //     console.log(`Updating task @ index ${ptIdx}`)
+  //     await nextTick()
+  //   } else if (task.isRoot) {
+  //     console.log('This is a root task')
+  //     let tIdx = boardData.workItems.findIndex((t) => t.idTask == task.idTask)
+  //     boardData.workItems.splice(tIdx, 1)
+  //     await nextTick()
+  //   } else if (task.parentTask == null && task.idEpic != null && !task.isRoot) {
+  //     console.log('This is an Epic task, searching parent epic...')
+  //     let epic = boardData.epics.find((e) => e.idEpic === task.idEpic)
+  //     console.log('found epic')
+  //     console.log(epic)
+  //     let tIdx = epic.subTasks.findIndex((t) => t.idTask == task.idTask)
+  //     epic.subTasks.splice(tIdx, 1)
+  //     await nextTick()
+  //   } else if (task.parentTask != null && task.parentTask.idEpic != null && !task.isRoot) {
+  //     console.log('This is a subtask, which parent task has an epic')
+  //     let epic = boardData.epics.find((e) => e.idEpic === task.parentTask.idEpic)
+  //     console.log('found epic', epic)
+  //     let ptask = epic.subTasks.find((t) => t.idTask == task.parentTask.idTask)
+  //     console.log('found parent task', ptask)
+  //     let tIdx = ptask.subTasks.findIndex((t) => t.idTask == task.idTask)
+  //     ptask.subTasks.splice(tIdx, 1)
+  //   } else {
+  //     console.log("don't know which kind of task is this")
+  //   }
+  //   if (task.idTask === selectedTask.value?.idTask) {
+  //     selectedTask.value = null
+  //     globalSelectedTask.value = null
+  //     await nextTick()
+  //   }
+  //   let taskIdx = BoardTask.allTasks.findIndex((t) => t.idTask === idTask)
+  //   BoardTask.allTasks.splice(taskIdx, 1)
+  //   console.log('finish updateTask.delete')
+  // }
 }
 
 //TODO: reimplement, it depends on deprecated idEpic
@@ -815,7 +905,6 @@ window.electronAPI.onRefresh(async () => {
   console.log(window.scrollY)
 })
 
-
 window.electronAPI.onTaskUpdate(async (idTask, idProject, op) => {
   console.log(`got signal of an updated/inserted/moved task: ${idTask}`)
   if (idProject > 0) {
@@ -832,6 +921,7 @@ window.electronAPI.onTaskUpdate(async (idTask, idProject, op) => {
   } else if (op === 'MOVE') {
     console.log('Moving...')
     await removeTask(idTask)
+    console.log('Removed...')
     await insertTask(idTask)
   } else {
     await updateTask(idTask)

@@ -3,8 +3,9 @@ let allStates = []
 //let stateMap = new Map()
 let projectMap = new Map()
 let epicMap = new Map()
-let taskMap = new Map()
+//let taskMap = new Map()
 let allTaskMap = new Map()
+let taskIndexMap = new Map()
 
 
 function getRandomAlphanumeric() {
@@ -54,7 +55,7 @@ class BoardProject {
   addTask(task) {
     this.tasks.push(task)
     this.taskMap.set(task.idTask, task)
-    taskMap.set(task.idTask, task)
+    //taskMap.set(task.idTask, task)
   }
 }
 
@@ -103,7 +104,14 @@ class BoardTask {
     //this.epic = null
     this.parentTask = null
     allTaskMap.set(this.idTask, this)
-    BoardTask.allTasks.push(this)
+    if (!taskIndexMap.has(this.idTask)){
+      BoardTask.allTasks.push(this)
+      taskIndexMap.set(this.idTask, BoardTask.allTasks.length-1)
+    }
+    else{
+      let idx = taskIndexMap.get(this.idTask)
+      BoardTask.allTasks[idx] = this
+    }
     if (this.hasSubTasks) {
       for (let subtask of task.subTasks) {
         let subTaskObject = new BoardTask(subtask, this.idTask)
@@ -205,6 +213,14 @@ class BoardTask {
   updateData(newData){
     // let previousState = this.state
     this.setMainValues(newData)
+    if ('subTasks' in newData){
+      this.subTasks = []
+      for (let subtask of newData.subTasks) {
+        let subTaskObject = new BoardTask(subtask, this.idTask)
+        subTaskObject.parentTask = this
+        this.subTasks.push(subTaskObject)
+      }
+    }
     //this.parentTask= parentTaskId
     //this.isRoot= parentTaskId == null && !this.idEpic
     // if (this.hasSubTasks) {
@@ -320,12 +336,24 @@ function resetData(){
   //stateMap.clear()
   projectMap.clear()
   epicMap.clear()
-  taskMap.clear()
+  //taskMap.clear()
   allTaskMap.clear()
+  taskIndexMap.clear()
   BoardEpic.allEpics = []
   BoardTask.allTasks = []
   BoardTask.rootTasks = []
 }
 
-export { allStates, taskMap, allTaskMap, projectMap, epicMap, BoardState, BoardProject, BoardEpic, BoardTask, resetData }
+export {
+  allStates,
+  allTaskMap,
+  taskIndexMap,
+  projectMap,
+  epicMap,
+  BoardState,
+  BoardProject,
+  BoardEpic,
+  BoardTask,
+  resetData,
+}
 //stateMap,
