@@ -10,56 +10,81 @@ const props = defineProps({
   },
 })
 
-const events = defineEmits([
-  'select',
-  'toggleEpic',
-  'goToDetailEpic'
-])
+const events = defineEmits(['select', 'toggleEpic', 'goToDetailEpic'])
 
-function styleForTask(){
+function styleForTask() {
   return `border: solid 3px ${props.epic.color}; padding-bottom: 32px;` // ${shadow}; `
 }
 
-function getTaskMouseOutStyle(){
+function getTaskMouseOutStyle() {
   return "this.style.borderStyle='none'"
 }
 
-function styleForEpicTab(){
+function styleForEpicTab() {
   return `background-color: ${props.epic.color}`
 }
 
-function editEpic(){
-  window.electronAPI.openEpicPage(`board/${props.epic.idBoard}/epic/${props.epic.idEpic}`, null)
+function editEpic() {
+  //window.electronAPI.openEpicPage(`board/${props.epic.idBoard}/task/${props.epic.idTask}`, null)
+  const params = new URLSearchParams({
+    idBoard: props.epic.idBoard,
+    hierarchy: props.epic.hierarchy,
+  })
+  window.electronAPI.openTaskPage('newTask', `${params}`)
 }
-
-
 </script>
 
 <template>
-  <div @click="$emit('select')"
-       onmouseover="this.style.borderStyle='dotted'" :onmouseout="getTaskMouseOutStyle()"
-       draggable="true"
-       class="folder-container"
+  <div
+    @click="$emit('select')"
+    onmouseover="this.style.borderStyle = 'dotted'"
+    :onmouseout="getTaskMouseOutStyle()"
+    draggable="true"
+    class="folder-container"
   >
-    <div class="folder-tab" :style="styleForEpicTab()">
-      Epic
-    </div>
+    <div class="folder-tab" :style="styleForEpicTab()">Epic</div>
     <div class="folder" :style="styleForTask()">
-      <span><b>{{epic.key }}</b><br> </span>
-      {{ epic.epic }}
-      <br>({{ epic.subTasks.length }} tasks)
-      <img src="epic.png" style="position: absolute; left: 4px; bottom: 6px; width:16px; height: 16px"/>
-      <img :src="`${epic.priority}.svg`" style="position: absolute; left: 22px; bottom: 6px; width:16px; height: 16px"/>
-      <button @click="editEpic" type="button" title="Edit epic" class="buttonTaskAction" style="bottom: 4px; right: 4px; ">
+      <span
+        ><b>{{ epic.key }}</b
+        ><br />
+      </span>
+      {{ epic.title }}
+      <br />({{ epic.subTasks?.length }} tasks)
+      <img
+        src="epic.png"
+        style="position: absolute; left: 4px; bottom: 6px; width: 16px; height: 16px"
+      />
+      <img
+        :src="`${epic.priority}.svg`"
+        style="position: absolute; left: 22px; bottom: 6px; width: 16px; height: 16px"
+      />
+      <button
+        @click="editEpic"
+        type="button"
+        title="Edit epic"
+        class="buttonTaskAction"
+        style="bottom: 4px; right: 4px"
+      >
         <span class="material-icons-outlined material-icons">edit</span>
       </button>
-      <button  @click="$emit('toggle-epic', epic)" :title="epic.expanded ? 'Hide Tasks':'Show Tasks'"
-               class="buttonTaskAction" style="right: 28px; bottom: 4px;" >
-        <span class="material-icons-outlined material-icons" v-if="!epic.expanded">expand_more</span>
+      <button
+        @click="$emit('toggle-epic', epic)"
+        :title="epic.expanded ? 'Hide Tasks' : 'Show Tasks'"
+        class="buttonTaskAction"
+        style="right: 28px; bottom: 4px"
+      >
+        <span class="material-icons-outlined material-icons" v-if="!epic.expanded"
+          >expand_more</span
+        >
         <span class="material-icons-outlined material-icons" v-if="epic.expanded">expand_less</span>
       </button>
-      <button v-if="epic.expanded" @click="$emit('go-to-detail-epic', epic)" title="Go To Epic's Tasks"
-              class="buttonTaskAction" style="right: 52px; bottom: 4px;" >
+      <button
+        v-if="epic.expanded"
+        @click="$emit('go-to-detail-epic', epic)"
+        title="Go To Epic's Tasks"
+        class="buttonTaskAction"
+        style="right: 52px; bottom: 4px"
+      >
         <span class="material-icons-outlined material-icons">zoom_in</span>
       </button>
     </div>
@@ -67,11 +92,10 @@ function editEpic(){
 </template>
 
 <style scoped>
-
 button.buttonTaskAction {
   position: absolute;
-  padding:0;
-  margin:0;
+  padding: 0;
+  margin: 0;
   width: 22px;
   height: 22px;
   color: #707070;
@@ -134,6 +158,4 @@ button.buttonTaskAction {
     color: white;
   }
 }
-
 </style>
-

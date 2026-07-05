@@ -1,6 +1,7 @@
 <script setup>
 import {VueShowdown} from "vue-showdown";
-import { ref, defineProps, watch, computed, onMounted } from 'vue'
+import { ref, defineProps, computed, onMounted } from 'vue'
+// watch
 import {
   projectMap,
 } from 'src/commonObjects'
@@ -189,20 +190,22 @@ async function saveNotes(){
   console.log('Notes have been saved!')
 }
 
-watch(
-  () => taskChecklists,
-  async (newVal) => {
-    if (newVal==null || props.task==null){
-      return
-    }
-    let data = {
-      idBoard: props.task.idBoard,
-      xtraData: props.task.xtraData,
-    }
-    await callApi("POST", `user/tasks/${props.task.idTask}`, data)
-  },
-  {deep: true}
-)
+
+//TODO: verify this watch, is triggering on initial rendering, causing an error
+// watch(
+//   () => taskChecklists,
+//   async (newVal) => {
+//     if (newVal==null || props.task==null){
+//       return
+//     }
+//     let data = {
+//       idBoard: props.task.idBoard,
+//       xtraData: props.task.xtraData,
+//     }
+//     await callApi("POST", `user/tasks/${props.task.idTask}`, data)
+//   },
+//   {deep: true}
+// )
 
 function getJiraLink(selfLink){
   const url = new URL(selfLink);

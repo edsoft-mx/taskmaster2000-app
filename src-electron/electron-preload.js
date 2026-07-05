@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ),
   onRefreshTimeline: (callback) => ipcRenderer.on('updateTimeline', () => callback()),
 
+  storeOnGlobalCache: (kind, id, data) => ipcRenderer.send('store-on-global-cache', kind, id, data),
+  getFromGlobalCache: (kind, id) => ipcRenderer.invoke('function:getFromGlobalCache', kind, id),
+
   pomodoroTimerClick: (task) => ipcRenderer.send('pomodoro-timer-click', task),
   pomodoroMenuClick: (tasks) => ipcRenderer.send('pomodoro-menu-click', tasks),
   pomodoroTick: (callback) =>
@@ -64,9 +67,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       callback(pomodoroLabels),
     ),
   pomodoroToggleBell: (callback) =>
-    ipcRenderer.on('pomodoro-toggle-ring-the-bell', (_event, flag) =>
-      callback(flag),
-    ),
+    ipcRenderer.on('pomodoro-toggle-ring-the-bell', (_event, flag) => callback(flag)),
   //onGoToHome: (callback) => ipcRenderer.on('goToHome', () => callback()),
   //onGoToAbout: (callback) => ipcRenderer.on('goToAbout', () => callback())
 })

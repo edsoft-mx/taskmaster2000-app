@@ -26,5 +26,13 @@ export default route(function (/* { store, ssrContext } */) {
     history: createWebHashHistory()
   })
 
+  Router.beforeEach((to, from) => {
+    console.log('[Router] beforeEach:', from.fullPath, '->', to.fullPath, 'params:', to.params)
+  })
+
+  Router.afterEach((to) => {
+    console.log('[Router] afterEach:', to.fullPath, 'params:', to.params)
+  })
+
   return Router
 })
