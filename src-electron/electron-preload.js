@@ -62,9 +62,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pomodoroMenuClick: (tasks) => ipcRenderer.send('pomodoro-menu-click', tasks),
   pomodoroTick: (callback) =>
     ipcRenderer.on('pomodoro-tick', (_event, pomodoroMsg) => callback(pomodoroMsg)),
-  pomodoroLabelsPosition: (callback) =>
-    ipcRenderer.on('pomodoro-labels-position', (_event, pomodoroLabels) =>
-      callback(pomodoroLabels),
+  pomodoroOptions: (callback) =>
+    ipcRenderer.on('pomodoro-options', (_event, pomodoroOpts) =>
+      callback(pomodoroOpts),
     ),
   pomodoroToggleBell: (callback) =>
     ipcRenderer.on('pomodoro-toggle-ring-the-bell', (_event, flag) => callback(flag)),

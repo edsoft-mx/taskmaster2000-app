@@ -19,19 +19,25 @@ const isNewTask = computed(() => {
   return parts[parts.length - 1] === '0'
 })
 
-const isSubTask = computed(() => {
+const hierarchyCounter = computed(() => {
   let parts = props.hierarchy ? props.hierarchy.split('.') : []
-  return parts.length > 1
+  return parts.length
+})
+
+const isSubTask = computed(() => {
+  if (formData.parentTasks == null) {
+    return false
+  }
+  let parent = formData.parentTasks[formData.parentTasks.length - 1]
+  return parent.taskType === 'task'
 })
 
 const parentIsEpic = computed(() => {
-  let parts = props.hierarchy ? props.hierarchy.split('.') : []
-  if (parts.length > 1) {
-    let parent = parts[parts.length - 2]
-    return parent.startsWith('e')
-  } else {
+  if (formData.parentTasks == null) {
     return false
   }
+  let parent = formData.parentTasks[formData.parentTasks.length - 1]
+  return parent.taskType === 'epic'
 })
 
 // const hasEpic = computed(() => {
@@ -63,7 +69,7 @@ const formData = reactive({
   dueDate: null,
   estimatedStartDate: null,
   estimatedDuration: null,
-  parentTasks: null,
+  parentTasks: [],
 
   subTasks: [],
   newSubTaskTitle: '',
@@ -133,7 +139,7 @@ let tags = ref([])
 
 function searchParam(key) {
   let sp = new URLSearchParams(location.search)
-  console.log(sp)
+  //console.log(sp)
   return sp.get(key)
 }
 
@@ -169,14 +175,24 @@ async function getData() {
       currentValues = formData.parentTasks[formData.parentTasks.length - 1]
       formData.parentTasks.splice(formData.parentTasks.length - 1, 1)
     }
+    // console.log("currentValues")
+    // console.log(currentValues)
+    // console.log("formData.parentTasks")
+    // console.log(formData.parentTasks)
   }
-  if (isSubTask.value) {
+  else {
+    formData.parentTasks=null
+  }
+
+  if (hierarchyCounter.value > 1) {
     let delCount = 1
-    if (!parentIsEpic.value) {
+    if (isSubTask.value) {
       delCount += 1
     }
+    // console.log(
+    //   `hierarchyCounter: ${hierarchyCounter.value}, isSubTask?: ${isSubTask.value}, delCount:${delCount}`,
+    // )
     taskTypes.splice(0, delCount)
-
     for (let i = 0; i < boardProjects.value.length; i++) {
       let p = boardProjects.value[i]
       if (p.value !== formData.parentTasks[formData.parentTasks.length - 1].idProject) {
@@ -199,13 +215,17 @@ async function getData() {
   }
   tags.value = tags_
   let title
+  console.log('new task?')
+  console.log(isNewTask.value)
   if (isNewTask.value) {
     formData.priority = taskPriorities.find((tp) => tp.label === 'Normal')
     let defaultKind = !isSubTask.value || parentIsEpic.value ? 'task' : 'subtask'
+    console.log(`defaultKind: ${defaultKind}`)
     formData.taskType = taskTypes.find((tt) => tt.value === defaultKind)
+    //console.log(formData.taskType)
     formData.project = boardProjects.value[0]
     if (!isSubTask.value) {
-      title = 'New Task'
+      title = 'New Work Item'
     } else {
       let parent = formData.parentTasks[formData.parentTasks.length - 1]
       formData.project = boardProjects.value.find((p) => p.value === parent.idProject)
@@ -214,7 +234,7 @@ async function getData() {
     }
     formData.state = boardStates.value.find((bs) => bs.value === searchParam('state'))
     //console.log('state')
-    console.log(formData.state)
+    //console.log(formData.state)
     formData.xtraData = {}
   } else {
     formData.idTask = currentValues.idTask
@@ -237,9 +257,10 @@ async function getData() {
       formData.tags = selectedTags
     }
     let parent = formData.parentTasks[formData.parentTasks.length - 1]
-    title = !isSubTask.value
-      ? `Edit Task ${formData.key}`
-      : `Edit ${parent.key}'s subtask ${formData.key}`
+    title =
+      hierarchyCounter.value === 1
+        ? `Edit Work Item ${formData.key}`
+        : `Edit ${parent.key}'s subtask ${formData.key}`
   }
   document.title = title
 }

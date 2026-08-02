@@ -177,8 +177,10 @@ async function getData() {
   for (let state of result.states) {
     statesObjects.push(new BoardState(state))
   }
+
   for (let project of result.projects) {
-    projectObjects.push(new BoardProject(project))
+    let prj = new BoardProject(project)
+    projectObjects.push(prj)
   }
 
   headerTitle.value = boardData.name
@@ -204,10 +206,13 @@ async function getData() {
     //allTasks.push(taskObject)
     allTaskMap.set(task.idTask, taskObject)
     processSubTasks(task) //, allTasks)
+    let p = projectMap.get(task.idProject)
+    p.addTask(taskObject)
   }
   console.log('slow 2')
   await window.electronAPI.storeOnGlobalCache('board', 'tasks', BoardTask.allTasks)
   await window.electronAPI.storeOnGlobalCache('board', 'tasksMap', allTaskMap)
+  await window.electronAPI.storeOnGlobalCache('board', 'projects', projectObjects)
   console.log('board data stored on global cache')
   //console.log(allTaskMap)
   // console.log('searching for epics')
@@ -549,6 +554,13 @@ async function insertTask(idTask) {
   console.log('finish updateTask.insert')
 }
 
+function getWorkItemFromHierarchyParts(hParts, counter) {
+  let slice = hParts.slice(0, counter)
+  let dotPath = slice.join('.')
+  let taskId = boardData.itemHierarchyMapping.get(dotPath)
+  return taskId
+}
+
 async function updateTask(idTask) {
   if (!idTask) {
     return
@@ -577,7 +589,7 @@ async function updateTask(idTask) {
   let hierarchyParts = task.hierarchy.split('.')
   let level0Idx
   let level1Idx
-  let idx
+  let idx, id0, id1, id2
   let checkMaximized = []
   switch (hierarchyParts.length) {
     case 1:
@@ -588,27 +600,28 @@ async function updateTask(idTask) {
       await nextTick()
       break
     case 2:
-      checkMaximized.push(task.parentTask.idTask)
-      checkMaximized.push(task.idTask)
-      level0Idx = boardData.workItems.findIndex((t) => t.idTask == task.parentTask.idTask)
-      idx = boardData.workItems[level0Idx].subTasks.findIndex((t) => t.idTask == idTask)
+      id0 = getWorkItemFromHierarchyParts(hierarchyParts, 1)
+      id1 = getWorkItemFromHierarchyParts(hierarchyParts, 2)
+      checkMaximized.push(id0)
+      checkMaximized.push(id1)
+      level0Idx = boardData.workItems.findIndex((t) => t.idTask === id0)
+      idx = boardData.workItems[level0Idx].subTasks.findIndex((t) => t.idTask === id1)
       console.log(`${level0Idx}-${idx}`)
       boardData.workItems[level0Idx].subTasks.splice(idx, 1, { ...task, state: task.state })
       console.log(`Updating task @ index ${level0Idx}`)
       await nextTick()
       break
     default:
-      checkMaximized.push(task.parentTask.parentTask.idTask)
-      checkMaximized.push(task.parentTask.idTask)
-      checkMaximized.push(task.idTask)
-      level0Idx = boardData.workItems.findIndex(
-        (t) => t.idTask == task.parentTask.parentTask.idTask,
-      )
-      level1Idx = boardData.workItems[level0Idx].subTasks.findIndex(
-        (t) => t.idTask == task.parentTask.idTask,
-      )
+      id0 = getWorkItemFromHierarchyParts(hierarchyParts, 1)
+      id1 = getWorkItemFromHierarchyParts(hierarchyParts, 2)
+      id2 = getWorkItemFromHierarchyParts(hierarchyParts, 3)
+      checkMaximized.push(id0)
+      checkMaximized.push(id1)
+      checkMaximized.push(id2)
+      level0Idx = boardData.workItems.findIndex((t) => t.idTask === id0)
+      level1Idx = boardData.workItems[level0Idx].subTasks.findIndex((t) => t.idTask === id1)
       idx = boardData.workItems[level0Idx].subTasks[level1Idx].subTasks.findIndex(
-        (t) => t.idTask == task.idTask,
+        (t) => t.idTask === id2,
       )
       boardData.workItems[level0Idx].subTasks[level1Idx].subTasks.splice(idx, 1, {
         ...task,
@@ -879,7 +892,7 @@ async function toggleEpic(epic) {
   console.log('toggleEpic')
   console.log(epic)
   let data = { expanded: epic.expanded, idBoard: props.idBoard, idProject: epic.idProject }
-  await callApi('POST', `user/epics/${epic.idTask}`, data)
+  await callApi('POST', `user/tasks/${epic.idTask}`, data)
   if (epic.expanded) {
     //if (task.hasSubTasks && task.expanded) {
     setTimeout(`scrollToEpic(${epic.idTask})`, 500)
@@ -987,14 +1000,23 @@ onMounted(async () => {
 
     // If a link was clicked
     //console.log(target.classList)
+    let isInternal = false
+    if (target!=null && target.classList!=null && target.classList.contains('internalLink')) {
+      isInternal = true
+    }
     if (
       target &&
       target.tagName === 'A' &&
       target.href &&
-      target.classList?.contains('externalLink')
+      !isInternal
     ) {
       // Prevent the default behavior of the link
       event.preventDefault()
+      if (target.href.startsWith('note://')) {
+        // jump to other note
+
+        return
+      }
       if (event.ctrlKey) {
         await navigator.clipboard.writeText(target.href)
         window.electronAPI.notifyMessage(event, `Link ${target.href} was copied to the clipboard`)
@@ -1002,8 +1024,6 @@ onMounted(async () => {
         // Open the URL in the default browser
         window.electronAPI.openExternalLink(event, target.href)
       }
-      //const url = new URL(urlString);
-      //const domain = url.origin;
     }
   })
 })

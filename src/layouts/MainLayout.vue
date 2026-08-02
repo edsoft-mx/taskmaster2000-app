@@ -4,7 +4,15 @@
       <q-toolbar>
         <q-btn dense icon="menu_open" @click="toggleLeftDrawer"></q-btn>
         <q-toolbar-title style="min-width: 190px">
-          {{ headerTitle }}
+          <q-btn-dropdown color="primary" :label="headerTitle" @click="getBoardTree()" auto-close>
+            <q-tree
+              node-key="id"
+              :nodes="boardTree"
+              v-model:selected="boardTreeSelected"
+              @update:selected="treeSelectedNode()"
+            >
+            </q-tree>
+          </q-btn-dropdown>
         </q-toolbar-title>
 
         <q-space></q-space>
@@ -67,6 +75,7 @@
           clickable
           v-ripple
           :to="{ name: 'aBoard', params: { idBoard: board.idBoard } }"
+          class="internalLink"
         >
           <q-item-section avatar>
             <q-icon name="view_column" />
@@ -663,6 +672,7 @@ provide('rightDrawerOpen', rightDrawerOpen)
 const showSubtaskNumber = ref(0)
 const timelineIncludeBreaks = ref(false)
 const ringTheBell = ref(true)
+const flashAfterExtendedInactivity = ref(true)
 
 let searchText = ref('')
 const credsUsername = ref('')
@@ -682,6 +692,8 @@ let taskQueue = ref([])
 let queueSelectedTask = ref(null)
 // let today = ref(new Date().toISOString().split('T')[0].replaceAll('-','/'))
 let today = ref('')
+let boardTree = ref([])
+let boardTreeSelected = ref(null)
 
 provide('globalSelectedTask', selectedTask)
 
@@ -728,6 +740,7 @@ onMounted(async () => {
     currentUsername.value = config.user
     ringTheBell.value = config.pomodoroRingTheBell
     rightDrawerWidth.value = Number(config.rightDrawerWidth ? config.rightDrawerWidth : 500)
+    flashAfterExtendedInactivity.value = config.pomodoroOptions.flashAfterExtendedInactivity
     if (config.apiURL) {
       apiURL.value = config.apiURL
     }
@@ -845,21 +858,26 @@ watch(filterOutOldFinishedTasks, async () => {
 watch(pomodoroData, async (newVal) => {
   // console.log("pomodoroData changed")
   // console.log(newVal)
-  if (newVal.breakExpiredATimeAgo) {
+  if (newVal.breakExpiredATimeAgo && flashAfterExtendedInactivity.value) {
     flagFlashPomodoro = !flagFlashPomodoro
   } else {
     flagFlashPomodoro = false
   }
+  let bgStyle = 'bg-primary'
   if (flagFlashPomodoro) {
-    removeClassFromElement('mainHeader', 'bg-primary')
+    removeClassFromElement('mainHeader', bgStyle)
     addClassToElement('mainHeader', 'noPomodoro')
-    removeClassFromElement('mainFooter', 'bg-primary')
+    removeClassFromElement('mainFooter', bgStyle)
     addClassToElement('mainFooter', 'noPomodoro')
+    removeClassFromElement('rightHeader', bgStyle)
+    addClassToElement('rightHeader', 'noPomodoro')
   } else {
-    removeClassFromElement('mainHeader', 'noPomodoro')
-    addClassToElement('mainHeader', 'bg-primary')
+    removeClassFromElement('mainHeader', bgStyle)
+    addClassToElement('mainHeader', bgStyle)
     removeClassFromElement('mainFooter', 'noPomodoro')
-    addClassToElement('mainFooter', 'bg-primary')
+    addClassToElement('mainFooter', bgStyle)
+    removeClassFromElement('rightHeader', 'noPomodoro')
+    addClassToElement('rightHeader', bgStyle)
   }
 })
 
@@ -1233,4 +1251,82 @@ window.electronAPI.pomodoroToggleBell(async (flag) => {
   console.log(`Ring the bell: ${flag}`)
   ringTheBell.value = flag
 })
+
+function populateSubTasks(parentTask) {
+  let result = []
+  for (let task of parentTask) {
+    let t = {
+      id: `${task.idTask}`,
+      label: `${task.key} - ${task.title}`,
+      icon: 'task',
+      selectable: true,
+    }
+    if (task.state === 'Done') {
+      continue
+    }
+    if (task.subTasks != null && task.subTasks.length > 0) {
+      t.children = populateSubTasks(task.subTasks)
+    }
+    result.push(t)
+  }
+  return result
+}
+
+async function getBoardTree() {
+  if (boardTree.value.length > 0) {
+    return
+  }
+  boardTree.value = []
+  let projects = await window.electronAPI.getFromGlobalCache('board', 'projects')
+  for (let project of projects) {
+    let tasks = []
+    const sortedTasks = [...project.tasks].sort((a, b) => {
+      const dashA = a.key.lastIndexOf('-')
+      const dashB = b.key.lastIndexOf('-')
+      const preA = a.key.slice(0, dashA)
+      const preB = b.key.slice(0, dashB)
+      const numA = Number(a.key.slice(dashA + 1))
+      const numB = Number(b.key.slice(dashB + 1))
+      return preA.localeCompare(preB) || numA - numB
+    })
+    for (let task of sortedTasks) {
+      let t = {
+        id: `${task.idTask}`,
+        label: `${task.key} - ${task.title}`,
+        icon: 'task',
+        selectable: true,
+      }
+      if (task.state === 'Done') {
+        continue
+      }
+      if (task.subTasks != null && task.subTasks.length > 0) {
+        t.children = populateSubTasks(task.subTasks)
+      }
+      tasks.push(t)
+    }
+    boardTree.value.push({
+      id: `p:${project.idProject}`,
+      label: project.name,
+      icon: 'work_outline',
+      children: tasks,
+      selectable: false,
+    })
+  }
+}
+
+async function treeSelectedNode() {
+  console.log(boardTreeSelected.value)
+  let idTask = Number(boardTreeSelected.value)
+  let boardTaskMap = await window.electronAPI.getFromGlobalCache('board', 'tasksMap')
+  if (boardTaskMap.has(idTask)) {
+    let task = boardTaskMap.get(idTask)
+    openSearchResult(task)
+  }
+}
+
+window.electronAPI.pomodoroOptions(async (opts) => {
+  console.log(`Set Pomodoro options to ${opts}`)
+  flashAfterExtendedInactivity.value = opts.flashAfterExtendedInactivity
+})
+
 </script>

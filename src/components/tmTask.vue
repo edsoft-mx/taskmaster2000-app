@@ -40,7 +40,6 @@ function getTaskMouseOutStyle(){
 async function timerClick(){
   let theTask = allTaskMap.get(props.task.idTask);
   await theTask.timerClick()
-  //uiStore.setSelectedTask(props.task.idTask)
 }
 
 function editTask(){

@@ -148,7 +148,7 @@ function newTask(state) {
   const params = new URLSearchParams({
     state: state.state,
     idBoard: idBoard,
-    hierarchy: hierarchy
+    hierarchy: hierarchy,
   })
   window.electronAPI.openTaskPage('newTask', `${params}`)
 }
@@ -158,7 +158,7 @@ function dragOverStateColumn(event) {
     event.preventDefault()
   }
   //dummy()
-  console.log('dragOverStateColumn', event.currentTarget.id)
+  //console.log('dragOverStateColumn', event.currentTarget.id)
   let isValid = dropTargetIsValid(event.currentTarget.id)
   if (isValid) {
     //console.log(`dragover: ${event.currentTarget.id}`)
@@ -200,80 +200,51 @@ async function dropOverStateColumn(event) {
     event.preventDefault()
   }
   //dummy()
-  console.log('dropTask')
+  //console.log('dropTask')
   let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'))
   let isValid = dropTargetIsValid(event.currentTarget.id, data)
   let dropTarget = document.getElementById(event.currentTarget.id)
   if (isValid) {
-    console.log(`DROP! task: ${data.id}.state = ${data.state} -> ${dropTarget.id}`)
-    let dropResult
+    //console.log(`DROP! task: ${data.id}.state = ${data.state} -> ${dropTarget.id}`)
+    let _
     //if (data.kind === 'task') {
-    dropResult = await callApi('POST', `user/boards/${data.board}/tasks/${data.id}/dragged_to`, {
+    _ = await callApi('POST', `user/boards/${data.board}/tasks/${data.id}/dragged_to`, {
       target: dropTarget.id,
       idBoard: data.board,
     })
-    // } else if (data.kind === 'epic') {
-    //   dropResult = await callApi('POST', `user/boards/${data.board}/epics/${data.id}/dragged_to`, {
-    //     target: dropTarget.id,
-    //     idBoard: data.board,
-    //   })
-    // location.reload()
-    //   return
-    // }
     //console.log(dropResult)
-    // uiStore.setNewState4Task(data.id, dropResult.task.state)
-
-    console.log(dropResult)
-    // if (dropResult.newParent){
-    //   if (dropResult.from === 0){
-    //     // console.log('before')
-    //     // console.log(boardData.tasks)
-    //     boardData.tasks = copyTaskItems(boardData.tasks, data.id)
-    //     // console.log('after')
-    //     // console.log(boardData.tasks)
-    //     updateTasksState()
-    //   }
-    //   else{
-    //     let idx = boardData.tasksWithSubTasks.findIndex(task => task.idTask === data.parentTask)
-    //     let parentTask = boardData.tasksWithSubTasks[idx]
-    //     parentTask.subTasks = copyTaskItems(parentTask.subTasks, data.id)
-    //     updateParentTask(parentTask)
-    //   }
-    //   if (dropResult.to === 0) {
-    //     boardData.tasks.push(dropResult.task)
-    //     updateTasksState()
-    //   }
-    //   else {
-    //     let idx = boardData.tasksWithSubTasks.findIndex(task => task.idTask === dropResult.to)
-    //     // console.log(`Found parent task ${dropResult.to} at ${idx}`)
-    //     let parentTask = boardData.tasksWithSubTasks[idx]
-    //     // console.log(parentTask)
-    //     parentTask.subTasks.push(dropResult.task)
-    //     updateParentTask(parentTask)
-    //   }
-    // }
-    // else {
-    //   if (dropResult.to === 0) {
-    //     let idx = boardData.tasks.findIndex(task => task.idTask === data.id)
-    //     boardData.tasks[idx] = dropResult.task
-    //     updateTasksState()
-    //   }
-    //   else {
-    //     let idxParent = boardData.tasksWithSubTasks.findIndex(task => task.idTask === data.parentTask)
-    //     let idxTask = boardData.tasksWithSubTasks[idxParent].subTasks.findIndex(task => task.idTask === data.id)
-    //     boardData.tasksWithSubTasks[idxParent].subTasks[idxTask] = dropResult.task
-    //     updateParentTask(boardData.tasksWithSubTasks[idxParent])
-    //   }
-    // }
   }
   dropTarget.style.borderWidth = '0px'
   dropTarget.style.borderStyle = 'solid'
   dropTarget.style.borderColor = 'black'
 }
 
-function dragTask(event, task, parent) {
+function dragTask(event, elementId, task, parent) {
   event.dataTransfer.effectAllowed = 'move'
   event.dataTransfer.dropEffect = 'move'
+
+  console.log(elementId)
+  let element = document.getElementById(elementId)
+  // Build an offscreen clone with the rotation baked in
+  const clone = element.cloneNode(true)
+  const rect = element.getBoundingClientRect()
+
+  Object.assign(clone.style, {
+    position: 'absolute',
+    top: '-9999px',
+    left: '-9999px',
+    width: rect.width + 'px',
+    height: rect.height + 'px',
+    transform: 'rotate(5deg)',
+    transformOrigin: 'center',
+    pointerEvents: 'none',
+  })
+
+  document.body.appendChild(clone)
+
+  // offsetX/Y = where the cursor sits relative to the ghost
+  event.dataTransfer.setDragImage(clone, event.offsetX, event.offsetY)
+
   console.log('dragTask')
   console.log(task)
   console.log(parent)
@@ -321,40 +292,6 @@ function dragEpic(event, epic) {
   dragInitialState = `main_${epic.state.replace(' ', '_')}`
 }
 
-// function dragOverTask2(event){
-//   if (event.preventDefault) {
-//     event.preventDefault();
-//   }
-//   //dummy()
-//   console.log(event.currentTarget.id)
-//   let isValid = dropTargetIsValid2(event.currentTarget.id)
-//   if (isValid){
-//     //console.log(`dragover: ${event.currentTarget.id}`)
-//     let dropTarget = document.getElementById(event.currentTarget.id)
-//     //dropTarget.style.borderWidth="2px"
-//     dropTarget.style.borderTopStyle="dashed"
-//     dropTarget.style.borderTopColor="red"
-//     // dropTarget.style.borderStyle="dashed"
-//   }
-//   return isValid
-// }
-//
-// function dragLeaveTask2(event){
-//   if (event.preventDefault) {
-//     event.preventDefault();
-//   }
-//   let isValid = dropTargetIsValid2(event.currentTarget.id)
-//   if (isValid){
-//     //console.log(`dragleave: ${event.currentTarget.id}`)
-//     let dropTarget = document.getElementById(event.currentTarget.id)
-//     //dropTarget.style.borderWidth="0px"
-//     dropTarget.style.borderTopStyle="solid"
-//     dropTarget.style.borderTopColor="gray"
-//     //dropTarget.style.borderColor="black"
-//   }
-//   return isValid
-// }
-
 function dropTargetIsValid(id, data = null) {
   //console.log(`drop1: id != dragInitialState: ${id} != ${dragInitialState}`)
   let differentState = id !== dragInitialState
@@ -369,84 +306,6 @@ function dropTargetIsValid(id, data = null) {
     (id.startsWith('main_') || id.startsWith('task_') || id.startsWith('epic_')) && differentState
   )
 }
-
-// function dropTargetIsValid2(object_id, data=null){
-//   let validId = /(task-card-\d+)|(subtask-card-\d+-\d+)/
-//   let match = validId.exec(object_id)
-//   if (data==null) {
-//     return match != null
-//   }
-//   else {
-//     return object_id !== data.id && match != null
-//   }
-// }
-
-// function getSiblingTasksInfo(dropTargetId){
-//   let sameStateTask
-//   let targetIndex=-1
-//   const re_mainTask= /^task-card-(\d+)/
-//   let targetTask = boardData.allTasksMap.get(dropTargetId)
-//   console.log('TargetTask', targetTask)
-//   let matchMainTask = re_mainTask.exec(dropTargetId)
-//   if (matchMainTask){
-//     //console.log('por aca', matchMainTask)
-//     sameStateTask = boardData.stateMap.get(targetTask.state)
-//     targetIndex = sameStateTask.findIndex(task => task.idTask === Number(matchMainTask[1]))
-//     console.log('Same lane tasks:')
-//     console.log(sameStateTask)
-//     // for (let t2 of sameStateTask) {
-//     //   console.log(t2.taskId)
-//     // }
-//   }
-//   else{
-//     const re_subTask= /^subtask-card-(\d+)-(\d+)/
-//     let matchSubTask = re_subTask.exec(dropTargetId)
-//     let parentTask = boardData.allTasksMap.get(`task-card-${matchSubTask[1]}`)
-//     console.log('Parent task:',parentTask)
-//     sameStateTask = []
-//     let n=0
-//     parentTask.subTasks.forEach(subTask => {
-//       if (subTask.state === targetTask.state) {
-//         sameStateTask.push(subTask)
-//         if(subTask.idTask === Number(matchSubTask[2])){
-//           targetIndex=n
-//         }
-//       }
-//       n++
-//     })
-//     console.log('Same lane tasks:')
-//     console.log(sameStateTask)
-//   }
-//   return {
-//     siblingTasks: sameStateTask,
-//     targetIndex: targetIndex,
-//   }
-// }
-
-// async function dropTask2(event){
-//   if (event.preventDefault) {
-//     event.preventDefault();
-//   }
-//   //dummy()
-//   console.log('dropTask2')
-//   let data = JSON.parse(event.dataTransfer.getData('text/tm2000task'));
-//   let isValid = dropTargetIsValid2(event.currentTarget.id, data)
-//   let dropTarget = document.getElementById(event.currentTarget.id)
-//
-//   if (isValid) {
-//     //data = {id, state, project, parentTask}
-//     console.log(`DROP-sort task: ${data.id} -> ${dropTarget.id}`)
-//     let targetData = getSiblingTasksInfo(dropTarget.id)
-//     await callApi('POST', `user/boards/${props.idBoard}/tasks/${data.id}/insert_before`, targetData)
-//     let scroll = window.scrollY
-//     await getData()
-//     window.scroll(0, scroll)
-//   }
-//   else {
-//     dropTarget.style.borderTopStyle = "solid"
-//     dropTarget.style.borderTopColor = "gray"
-//   }
-// }
 
 function showMore(state) {
   let number = stateDisplayLimit.value.get(state.state)
@@ -511,11 +370,13 @@ function showLess(state) {
             @toggle-detail="$emit('toggle-detail', task)"
             @go-to-detail="$emit('go-to-detail', task)"
             @select="$emit('select', task)"
-            @dragstart="dragTask($event, task, parent)"
+            @dragstart="dragTask($event, `task-card-${task.idTask}`, task, parent)"
           />
         </div>
         <div class="newTask" v-if="state.start">
-          <a href=":newTask" @click="newTask(state)" @click.prevent>+ Add a new work item</a>
+          <a href=":newTask" class="internalLink" @click="newTask(state)" @click.prevent
+            >+ Add a new work item</a
+          >
         </div>
         <!--div class="newTask" v-if="state.start && parent == null">
           <a href=":newEpic" @click="newEpic(state)" @click.prevent>+ Add a new epic</a>
@@ -523,15 +384,15 @@ function showLess(state) {
         <div class="newTask" v-if="stateTasksLength.get(state.state) > 7">
           Show...
           <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state)">
-            <a href="#more" @click="showMore(state)" @click.prevent>More</a>
+            <a href="#more" class="internalLink" @click="showMore(state)" @click.prevent>More</a>
           </span>
           <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state)">
             &nbsp;|&nbsp;
-            <a href="#more" @click="showAll(state)" @click.prevent>All</a>
+            <a href="#more" class="internalLink" @click="showAll(state)" @click.prevent>All</a>
           </span>
           <span v-if="stateDisplayLimit.get(state.state) > 7">
             &nbsp;|&nbsp;
-            <a href="#less" @click="showLess(state)" @click.prevent>Less</a>
+            <a href="#less" class="internalLink" @click="showLess(state)" @click.prevent>Less</a>
           </span>
         </div>
       </div>

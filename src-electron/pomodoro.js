@@ -86,50 +86,6 @@ async function pomodoroToggle(){
   //await pomodoroOnTimerClick(pomodoroData.task)
 }
 
-// function getCurrentPomodoroFullDuration(){
-//   let idx = getPomodoroSession()
-//   let isBreak = idx % 2 === 0
-//   if (!isBreak){
-//     return 1500000
-//   }
-//   else {
-//     return idx===8 ? 1200000 : 300000
-//   }
-// }
-
-// function getFutureEpoch(duration){
-//   let now = new Date()
-//   return new Date(now.getTime() + duration)
-// }
-
-// async function pomodoroNext(notify=true){
-//   let idx = getPomodoroSession()
-//   let newSession = idx < 8 ? idx+1 : 1
-//   await setPomodoroSession(newSession, notify)
-//   pomodoroData.start = Date.now()
-//   pomodoroData.remaining = getCurrentPomodoroFullDuration()
-//   pomodoroData.epoch = getFutureEpoch(pomodoroData.remaining)
-//   let isBreak = newSession % 2 === 0
-//   let data = {
-//     "active": pomodoroData.timerActive,
-//     "task": isBreak ? pomodoroData.task : null,
-//     "epoch": pomodoroData.epoch.getTime(),
-//     "start": pomodoroData.start,
-//   }
-//   await callApi('POST', `user/pomodoro/${newSession}`, data)
-//   await pomodoroUpdateLabel(notify)
-//   //let workingToday = await callApi("GET", 'user/spent_time/today')
-//   //setWorkingToday(workingToday)
-//   pomodoroData.notifiedEndOfBreak= false
-// }
-
-// function getPomodoroRemainingMSecs(){
-//   let now = new Date()
-//   let remaining = pomodoroData.epoch.getTime() - now
-//   //console.log(remaining)
-//   return remaining
-// }
-
 async function pomodoroUpdateLabel(notify=true) {
   let remainingTime = ''
   if (!pomodoroData._remaining) {
@@ -153,53 +109,6 @@ async function pomodoroUpdateLabel(notify=true) {
     })
   }
 }
-
-// async function pomodoroTick(){
-//   await pomodoroUpdateLabel()
-//   let now = new Date()
-//
-//   if (now > pomodoroData.epoch){
-//     let idx = getPomodoroSession()
-//     //POST spent time period for current task
-//     if (idx % 2 !== 0) {
-//       pomodoroData.task.workingIntervalEnd = Date.now()
-//       await showNotification(`End of Pomodoro Session on ${pomodoroData.task.title}`)
-//       //document.getElementById('boxRing').play()
-//       await eventPropagate({
-//         type: 'pomodoroEnd',
-//         value: idx,
-//         pomodoroData: getPomodoroDataObject(),
-//       })
-//       await updateWorkingPeriod()
-//       pomodoroData.task=null;
-//       await showNotification('Pomodoro Break Started')
-//       // auto start break, this will force the user to skip the break if want to account for more time
-//       console.log('start break')
-//       await pomodoroNext()
-//       await pomodoroUpdateLabel()
-//     }
-//     else {
-//       if (!pomodoroData.notifiedEndOfBreak){
-//         pomodoroData.notifiedEndOfBreak= true;
-//         console.log('finish break')
-//         //await pomodoroEndTimer()
-//         await showNotification('Pomodoro Break Ended')
-//         await eventPropagate({
-//           type: 'pomodoroEnd',
-//           value: idx,
-//           pomodoroData: getPomodoroDataObject(),
-//         })
-//       }
-//       let expiredDiff = now - pomodoroData.epoch
-//       let expiredMinutes = Math.floor(expiredDiff /1000 / 60)
-//       pomodoroData.breakExpiredATimeAgo = expiredMinutes > 5
-//       console.log(expiredMinutes)
-//     }
-//   }
-//   else {
-//     pomodoroData.breakExpiredATimeAgo = false
-//   }
-// }
 
 async function pomodoroSkipToNextSession(){
   grpcMessenger.JumpToNextPomodoroSession({user: currentUser}, function (err, response){
@@ -287,55 +196,6 @@ async function pomodoroOnTimerClick(task){
     console.log(response.session_number)
     console.log(response)
   })
-  // console.log("!")
-  // return
-  // let idx = getPomodoroSession()
-  // if (idx===0 || idx % 2 === 0){
-  //   pomodoroData.task = null
-  // }
-  // //dummy()
-  // // click timerButton on same task: toggle
-  // if (pomodoroData.task != null && task.idTask === pomodoroData.task.idTask) {
-  //   console.log(`toggle task's pomodoro timer ${task.idTask}`)
-  //   pomodoroData.timerActive = !pomodoroData.timerActive
-  //   if (!pomodoroData.timerActive){
-  //     pomodoroData.task.workingIntervalEnd = Date.now()
-  //     await updateWorkingPeriod()
-  //     await pomodoroPauseTimer()
-  //   }
-  //   else {
-  //     pomodoroData.task.workingIntervalStart = Date.now()
-  //     pomodoroData.start = Date.now()
-  //     await pomodoroStartTimer()
-  //     await setPomodoroTask(pomodoroData.task)
-  //     console.log(`New working period for ${task.idTask}`)
-  //   }
-  // }
-  // else {
-  //   // start a new pomodoro with task
-  //   if (pomodoroData.task == null || !pomodoroData.timerActive) {
-  //     task.workingIntervalStart = Date.now()
-  //     if (idx===0 || idx % 2 === 0){
-  //       await pomodoroNext(false)
-  //     }
-  //     pomodoroData.start = Date.now()
-  //     pomodoroData.timerActive = true
-  //     console.log(`New working period for ${task.idTask}`)
-  //     await setPomodoroTask(task, true)
-  //     await pomodoroStartTimer()
-  //   }
-  //     // an existing Pomodoro timer is running, but clicked on a different task
-  //   // switch to this new task, but first close the active spentTime on previous one
-  //   else if (pomodoroData.timerActive) {
-  //     pomodoroData.task.workingIntervalEnd = Date.now()
-  //     await updateWorkingPeriod()
-  //     task.workingIntervalStart = Date.now()
-  //     pomodoroData.start = Date.now()
-  //     await setPomodoroTask(task)
-  //     await updatePomodoroDataOnServer()
-  //     console.log(`New working period for ${task.idTask}`)
-  //   }
-  // }
 }
 
 async function pomodoroStartWithPrevious(){
@@ -528,6 +388,7 @@ function pomodoroWatcherStreamingCall(client, user) {
       pomodoroData.start= status._started_at ? new Date(status.started_at * 1000): null
       pomodoroData.epoch= status.epoch ? new Date(status.epoch * 1000): null
       pomodoroData.remaining= status._remaining ? status.remaining : null
+      pomodoroData.fullSessionDuration = status._total_time ? status.total_time : null
       pomodoroData._remaining= status._remaining
       pomodoroData.task= status.task
       if (notifyTaskStart){

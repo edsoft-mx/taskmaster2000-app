@@ -32,14 +32,49 @@ let grpcPomodoroClient = null;
 let grpcTaskClient = null
 let currentUser = "";
 let configuration = null
+const configDefaults = {
+  token: null,
+  user: null,
+  apiURL: null,
+  messengerHostPort: null,
+  mainWindowWidth: 1200,
+  mainWindowHeight: 800,
+  rightDrawerWidth: 500,
+  pomodoroRingTheBell: true,
+  pomodoroOptions: {
+    showTimeline: true,
+    showMenuAlways: true,
+    pomodoroLabelsPosition: 'bottom',
+    flashAfterExtendedInactivity: true,
+  },
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeDefaults(defaults, stored) {
+  let merged = { ...defaults, ...stored }
+  for (let key in defaults) {
+    if (isPlainObject(defaults[key]) && isPlainObject(stored[key])) {
+      merged[key] = mergeDefaults(defaults[key], stored[key])
+    }
+  }
+  return merged
+}
 
 // import readline from 'readline'
 // import { Readable } from 'stream'
 
 let mainWindow = null
 let pomodoroWindow = null
-let pomodoroLabels = 'bottom';
 let ringTheBell = true;
+let pomodoroWindowOptions = {
+  showTimeline : true,
+  showMenuAlways: true,
+  pomodoroLabelsPosition: 'bottom',
+  flashAfterExtendedInactivity: true
+}
 let toolWindows = new Map()
 let taskWindows = new Map()
 // let epicWindows = new Map()
@@ -62,12 +97,12 @@ function getConfiguration(){
   if (!configuration){
     let basePath = app.getPath('userData')
     const configFile = path.join(basePath, 'config.json')
-    let prevConf = null
+    let diskConf = {}
     if (fs.existsSync(configFile)) {
-      prevConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+      diskConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
     }
     console.log(`Retrieved configuration from ${configFile}`)
-    configuration = prevConf
+    configuration = mergeDefaults(configDefaults, diskConf)
   }
   return configuration
 }
@@ -81,7 +116,7 @@ function saveConfiguration(config){
   }
   let newConf = {...prevConf, ...config}
   fs.writeFileSync(configFile, JSON.stringify(newConf))
-  configuration= newConf
+  configuration = mergeDefaults(configDefaults, newConf)
 }
 
 async function getLocalNote(event, notePath){
@@ -93,6 +128,16 @@ async function getLocalNote(event, notePath){
     note = fs.readFileSync(notePath, 'utf8')
   }
   return note
+}
+
+function toggleInactivityAlert(){
+  pomodoroWindowOptions.flashAfterExtendedInactivity =
+    !pomodoroWindowOptions.flashAfterExtendedInactivity
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+  }
+  mainWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
 }
 
 function getMenu(){
@@ -123,6 +168,12 @@ function getMenu(){
           checked: ringTheBell,
           click: () => togglePomodoroBell(),
         },
+        {
+          type: 'checkbox',
+          label: 'Alert after inactivity period',
+          checked: pomodoroWindowOptions.flashAfterExtendedInactivity,
+          click: () => toggleInactivityAlert(),
+        },
         { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
@@ -142,13 +193,14 @@ async function createMainWindow () {
   /**
    * Initial window options
    */
+  let config = await getConfiguration()
   console.log('Creating main window...')
   let mainWindowWidth = 1200
   let mainWindowHeight = 800
-  if (configuration.mainWindowWidth) {
+  if (config.mainWindowWidth) {
     mainWindowWidth = configuration.mainWindowWidth
   }
-  if (configuration.mainWindowHeight) {
+  if (config.mainWindowHeight) {
     mainWindowHeight = configuration.mainWindowHeight
   }
   mainWindow = new BrowserWindow({
@@ -178,9 +230,6 @@ async function createMainWindow () {
     await mainWindow.loadFile('index.html', {query: {page: 'MainLayout'}})
   }
 
-  const menu = Menu.buildFromTemplate(getMenu())
-  Menu.setApplicationMenu(menu)
-
   if (process.env.DEBUGGING) {
      // if on DEV or Production with debug enabled
      mainWindow.webContents.openDevTools()
@@ -191,6 +240,11 @@ async function createMainWindow () {
   //     mainWindow.webContents.closeDevTools()
   //   })
   // }
+
+  pomodoroWindowOptions = config.pomodoroOptions
+  const menu = Menu.buildFromTemplate(getMenu())
+  Menu.setApplicationMenu(menu)
+
   mainWindow.on('closed', () => {
     if (platform !== 'darwin') {
       for (const [key, aWindow] of taskWindows.entries()) {
@@ -328,7 +382,8 @@ async function openTaskWindow(page, params){
     if (process.env.DEV) {
       await taskWindow.loadURL(process.env.APP_URL + `?component=taskEditor${params}`)
     } else {
-      console.log(`Loading index.html with ${pageParams}`)
+      console.log("Loading index.html with pageParams")
+      console.log(pageParams)
       await taskWindow.loadFile('index.html', {query: pageParams})
     }
 
@@ -347,68 +402,15 @@ async function openTaskWindow(page, params){
   }
 }
 
-// async function openEpicWindow(page, params){
-//   let pageParams = { page: page }
-//   if (params) {
-//     let p = new URLSearchParams(params)
-//     pageParams = { ...pageParams, ...Object.fromEntries(p) }
-//     console.log('Params of new window:')
-//     console.log(pageParams)
-//     params = `&${params}`
-//     console.log(`tm2000-openPage: ${page}${params}`)
-//   } else {
-//     console.log(`tm2000-openPage: ${page}`)
-//     params=''
-//   }
-//
-//   if (!epicWindows.has(`${page}${params}`)) {
-//     let epicWindow = new BrowserWindow({
-//       icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
-//       width: 1024,
-//       height: 600,
-//       useContentSize: true,
-//       webPreferences: {
-//         contextIsolation: true,
-//         // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-//         preload: path.resolve(
-//           currentDir,
-//           path.join(
-//             process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
-//             'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
-//           ),
-//         ),
-//       },
-//     })
-//     //epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
-//     if (process.env.DEV) {
-//       await epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
-//     } else {
-//       await epicWindow.loadFile('index.html', { query: pageParams })
-//     }
-//     epicWindows.set(`${page}${params}`, epicWindow)
-//     epicWindow.on('closed', () => {
-//       // if (mainWindow){
-//       //   mainWindow.webContents.send('updateBoard')
-//       // }
-//       epicWindows.delete(`${page}${params}`);
-//     })
-//   }
-//   else{
-//     let aEpicWindow = epicWindows.get(`${page}${params}`);
-//     aEpicWindow.show()
-//     aEpicWindow.focus()
-//   }
-// }
-
 function openTimeline(){
   openWindow('timeline')
 }
 
 function setPomodoroLabels(position){
-  pomodoroLabels = position
-  saveConfiguration({pomodoroLabels: position})
+  pomodoroWindowOptions.pomodoroLabelsPosition = position
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
   if (pomodoroWindow){
-    pomodoroWindow.webContents.send('pomodoro-labels-position', pomodoroLabels)
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
   }
 }
 
@@ -420,6 +422,23 @@ function togglePomodoroBell(){
     pomodoroWindow.webContents.send('pomodoro-toggle-ring-the-bell', ringTheBell)
   }
 }
+
+function toggleTimeline() {
+  pomodoroWindowOptions.showTimeline = !pomodoroWindowOptions.showTimeline
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+  }
+}
+
+function togglePomodoroShowMenu() {
+  pomodoroWindowOptions.showMenuAlways = !pomodoroWindowOptions.showMenuAlways
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+  }
+}
+
 
 function getMenuPomodoroTimer() {
   return [
@@ -444,18 +463,34 @@ function getMenuPomodoroTimer() {
             {
               type: 'radio',
               label: 'Bottom',
-              checked: pomodoroLabels==='bottom',
+              checked: pomodoroWindowOptions.pomodoroLabelsPosition === 'bottom',
               click: () => setPomodoroLabels('bottom'),
             },
-            { type: 'radio', label: 'Right', checked: pomodoroLabels==='right',
-              click: () => setPomodoroLabels('right') },
+            {
+              type: 'radio',
+              label: 'Right',
+              checked: pomodoroWindowOptions.pomodoroLabelsPosition === 'right',
+              click: () => setPomodoroLabels('right'),
+            },
           ],
         },
         {
           type: 'checkbox',
           label: 'Ring the bell when Pomodoro period ends',
           checked: ringTheBell,
-          click: () => togglePomodoroBell()
+          click: () => togglePomodoroBell(),
+        },
+        {
+          type: 'checkbox',
+          label: 'Show Timeline',
+          checked: pomodoroWindowOptions.showTimeline,
+          click: () => toggleTimeline(),
+        },
+        {
+          type: 'checkbox',
+          label: 'Always Show Menu',
+          checked: pomodoroWindowOptions.showMenuAlways,
+          click: () => togglePomodoroShowMenu(),
         },
         { type: 'separator' },
         { role: 'reload' },
@@ -473,18 +508,24 @@ function getMenuPomodoroTimer() {
 }
 
 async function openPomodoroTimerWindow() {
+  let configuration = await getConfiguration()
+  pomodoroWindowOptions = configuration.pomodoroOptions
   pomodoroWindow = await openWindow('pomodoroTimer', null, {
     skipTaskbar: true,
     title: 'Pomodoro Timer',
+    autoHideMenuBar: !pomodoroWindowOptions.showMenuAlways,
   })
   addPomodoroTickSubscriber((message)=>{
     pomodoroWindow.webContents.send('pomodoro-tick', message)
   })
+  console.log("Pomodoro window options")
+  console.log(pomodoroWindowOptions)
   let menuPomodoro = Menu.buildFromTemplate(getMenuPomodoroTimer())
   pomodoroWindow.setMenu(menuPomodoro)
   pomodoroWindow.on('close', () => {
     pomodoroWindow = null
   })
+  //pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
 }
 
 //app.whenReady().then(createWindow)
@@ -505,8 +546,10 @@ app.on('activate', async () => {
         mainWindow.restore()
       }
     }
-    mainWindow.show()
-    mainWindow.focus()
+    if (mainWindow!=null){
+      mainWindow.show()
+      mainWindow.focus()
+    }
   }
 })
 
@@ -609,48 +652,6 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
     callback(false);
   }
 });
-
-// function taskWatcherStreamingCall(client, user) {
-//   return new Promise((resolve, reject) => {
-//     console.log('taskWatcherStreamingCall')
-//     const call = client.SubscribeTaskWatcher({user: user})
-//     call.on('data', async (updatedTask) => {
-//       console.log('Received updated task')
-//       console.log(updatedTask)
-//       //console.log(task)
-//       mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
-//     });
-//     call.on('status', status => {
-//       console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);
-//       resolve();
-//     });
-//     call.on('error', () => {
-//       // Ignore error event
-//     });
-//     //call.end();
-//   });
-// }
-//
-// function epicWatcherStreamingCall(client, user) {
-//   return new Promise((resolve, reject) => {
-//     console.log('epicWatcherStreamingCall')
-//     const call = client.SubscribeEpicWatcher({user: user})
-//     call.on('data', async (updatedEpic) => {
-//       console.log('Received updated epic')
-//       console.log(updatedEpic)
-//       //console.log(task)
-//       mainWindow.webContents.send('on-epic-update', updatedEpic.id_epic, updatedEpic.id_project, updatedEpic.op)
-//     });
-//     call.on('status', status => {
-//       console.log(`SubscribeEpicWatcher got = ${grpc.status[status.code]}`);
-//       resolve();
-//     });
-//     call.on('error', () => {
-//       // Ignore error event
-//     });
-//     //call.end();
-//   });
-// }
 
 function taskWatcherStreamingCall(client, user) {
   const MAX_DELAY = 30000

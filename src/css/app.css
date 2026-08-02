@@ -109,6 +109,11 @@ div.selectedTask {
   background-color: #d0d0d0;
 }
 
+.icon {
+    height: 24px;
+    width: 24px;
+}
+
 button.buttonTaskAction {
   position: absolute;
   padding:0;
