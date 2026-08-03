@@ -1,4 +1,13 @@
-import { app, BrowserWindow, ipcMain, protocol, Notification, Menu, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  protocol,
+  WebContentsView,
+  Notification,
+  Menu,
+  shell,
+} from 'electron'
 import log from 'electron-log'
 import path, {dirname} from 'path'
 import os from 'os'
@@ -67,6 +76,10 @@ function mergeDefaults(defaults, stored) {
 // import { Readable } from 'stream'
 
 let mainWindow = null
+const tabs = new Map() // id -> WebContentsView
+let activeTabId = null
+const TAB_BAR_HEIGHT = 50
+
 let pomodoroWindow = null
 let ringTheBell = true;
 let pomodoroWindowOptions = {
@@ -225,9 +238,9 @@ async function createMainWindow () {
 
   //await mainWindow.loadURL(process.env.APP_URL+ `?page=MainLayout`)
   if (process.env.DEV) {
-    await mainWindow.loadURL(process.env.APP_URL + `?page=MainLayout`)
+    await mainWindow.loadURL(process.env.APP_URL + `?page=tabbar`)
   } else {
-    await mainWindow.loadFile('index.html', {query: {page: 'MainLayout'}})
+    await mainWindow.loadFile('index.html', { query: { page: 'tabbar' } })
   }
 
   if (process.env.DEBUGGING) {
@@ -259,8 +272,70 @@ async function createMainWindow () {
     mainWindow = null
   })
   mainWindow.on('resize', ()=>{
+    //console.log('Window resize')
+    resizeActiveTab()
     const [width, height] = mainWindow.getSize()
     saveConfiguration({mainWindowWidth: width, mainWindowHeight: height})
+  })
+  await createTab(0, 'MainLayout')
+}
+
+async function createTab(id, url) {
+  console.log(`Creating tab ${id}: ${url}`)
+  const view = new WebContentsView({
+    webPreferences: { contextIsolation: true,
+    preload: path.resolve(
+      currentDir,
+      path.join(
+        process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+        'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+      ),
+    ),
+      }
+  })
+  if (process.env.DEV) {
+    await view.webContents.loadURL(process.env.APP_URL + `?page=${url}`)
+    view.webContents.openDevTools({ mode: 'detach' })
+  } else {
+    await view.webContents.loadFile('index.html', { query: { page: url } })
+  }
+  tabs.set(id, view)
+  await switchToTab(id)
+}
+
+async function switchToTab(id) {
+  const bounds = mainWindow.getContentBounds()
+  // console.log('main window bounds')
+  // console.log(bounds)
+  // remove currently visible view
+  if (activeTabId && tabs.has(activeTabId)) {
+    mainWindow.contentView.removeChildView(tabs.get(activeTabId))
+  }
+  console.log(`Activating view ${id}`)
+  const view = tabs.get(id)
+  mainWindow.contentView.addChildView(view)
+  const viewBounds = {
+    x: 0,
+    y: TAB_BAR_HEIGHT,
+    width: bounds.width,
+    height: bounds.height - TAB_BAR_HEIGHT,
+  }
+  //console.log('setting view bounds:', viewBounds)
+  view.setBounds(viewBounds)
+  activeTabId = id
+}
+
+function resizeActiveTab() {
+  if (activeTabId==null) {
+    console.log('no active tab')
+    return
+  }
+  const bounds = mainWindow.getContentBounds()
+  tabs.get(activeTabId).setBounds({
+    x: 0,
+    y: TAB_BAR_HEIGHT,
+    width: bounds.width,
+    height: bounds.height - TAB_BAR_HEIGHT,
   })
 }
 
@@ -621,8 +696,28 @@ async function initHandlers(){
   ipcMain.on('store-on-global-cache', (event, kind, id, data) => {
     storeOnGlobalCache(kind, id, data)
   })
+  ipcMain.on('tm2000-add-new-empty-tab', () => {
+    const maxKey = Math.max(...tabs.keys())
+    createTab(maxKey+1, 'MainLayout')
+    let newTab = {
+      id: maxKey + 1,
+      name: `new-Tab-${maxKey + 1}`,
+      title: `New Tab ${maxKey + 1}`,
+      active: true
+    }
+    mainWindow.webContents.send('on-create-new-tab', newTab)
+  })
+  ipcMain.on('tm2000-tab-activated', (_event, tabId) => {
+    switchToTab(tabId)
+  })
+  ipcMain.on('tm2000-board-loaded', (_event, boardName) => {
+    mainWindow.webContents.send('tab-title-updated', activeTabId, boardName)
+  })
   addPomodoroTickSubscriber((message)=>{
     mainWindow.webContents.send('pomodoro-tick', message)
+    for (let [_, view] of tabs){
+      view.webContents.send('pomodoro-tick', message)
+    }
   })
   //await pomodoroRehydrate()
 }
@@ -670,7 +765,15 @@ function taskWatcherStreamingCall(client, user) {
       console.log('Received updated task')
       console.log(updatedTask)
       //console.log(task)
-      mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
+      //mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
+      for (let [_, view] of tabs) {
+        view.webContents.send(
+          'on-task-update',
+          updatedTask.id_task,
+          updatedTask.id_project,
+          updatedTask.op,
+        )
+      }
     });
     call.on('error', status => {
       console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);

@@ -63,11 +63,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pomodoroTick: (callback) =>
     ipcRenderer.on('pomodoro-tick', (_event, pomodoroMsg) => callback(pomodoroMsg)),
   pomodoroOptions: (callback) =>
-    ipcRenderer.on('pomodoro-options', (_event, pomodoroOpts) =>
-      callback(pomodoroOpts),
-    ),
+    ipcRenderer.on('pomodoro-options', (_event, pomodoroOpts) => callback(pomodoroOpts)),
   pomodoroToggleBell: (callback) =>
     ipcRenderer.on('pomodoro-toggle-ring-the-bell', (_event, flag) => callback(flag)),
   //onGoToHome: (callback) => ipcRenderer.on('goToHome', () => callback()),
   //onGoToAbout: (callback) => ipcRenderer.on('goToAbout', () => callback())
+  NewTabCreated: (callback) =>
+    ipcRenderer.on('on-create-new-tab', (_event, newTab) => callback(newTab)),
+  TabTitleUpdated: (callback) =>
+    ipcRenderer.on('tab-title-updated', (_event, tabId, title) => callback(tabId, title)),
+  addNewEmptyTab: () => ipcRenderer.send('tm2000-add-new-empty-tab'),
+  tabActivated: (tabId) => ipcRenderer.send('tm2000-tab-activated', tabId),
+  boardLoaded: (boardName) => ipcRenderer.send('tm2000-board-loaded', boardName),
 })

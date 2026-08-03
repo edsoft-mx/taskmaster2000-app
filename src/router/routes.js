@@ -20,6 +20,10 @@ const routes = [
     component: () => import('layouts/timeline.vue'),
   },
   {
+    path: '/tabbar',
+    component: () => import('layouts/tabbar.vue'),
+  },
+  {
     path: '/pomodoroTimer',
     component: () => import('layouts/pomodoroTimer.vue'),
   },

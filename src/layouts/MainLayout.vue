@@ -17,40 +17,7 @@
 
         <q-space></q-space>
 
-        <div>
-          <p
-            style="
-              margin-bottom: 2px;
-              max-width: 600px;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-              overflow: hidden;
-            "
-          >
-            {{ pomodoroData.task?.key }}{{ pomodoroData.task ? ' - ' : ''
-            }}{{ pomodoroData.task?.title }}
-          </p>
-        </div>
-        <div style="margin-left: 8px">
-          <q-avatar size="32px" :color="isSessionActive(1)">
-            <img src="to-work-in-an-office.png" title="Session 1" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
-          <q-avatar size="32px" :color="isSessionActive(3)">
-            <img src="to-work-in-an-office.png" title="Session 2" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
-          <q-avatar size="32px" :color="isSessionActive(5)">
-            <img src="to-work-in-an-office.png" title="Session 3" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
-          <q-avatar size="32px" :color="isSessionActive(7)">
-            <img src="to-work-in-an-office.png" title="Session 4" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
-        </div>
-        <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime"> </q-btn>
-        <q-space></q-space>
+
         <div style="margin-right: 8px">&nbsp;&nbsp;</div>
         <q-tabs
           v-model="rightDrawerTab"
@@ -359,9 +326,7 @@
     </q-page-container>
 
     <q-footer class="text-white; text-align: center; bg-primary" id="mainFooter">
-      <div id="hiddenStuff" style="display: none">
-        <audio id="boxRing" controls src="campana-de-box.mp3" v-if="ringTheBell"></audio>
-      </div>
+
     </q-footer>
   </q-layout>
 </template>
@@ -617,7 +582,7 @@ div.queueDragOverContainer {
 </style>
 
 <script setup>
-import { ref, reactive, provide, watch, onBeforeMount, onMounted, computed, nextTick } from 'vue'
+import { ref, provide, watch, onBeforeMount, onMounted, computed, nextTick } from 'vue'
 import { callApi, callApiLogin, store_configuration } from 'src/common'
 //import { useSessionStore } from 'stores/user_session';
 // import { useUISessionStore } from 'stores/ui_state';
@@ -671,8 +636,7 @@ provide('leftDrawerOpen', leftDrawerOpen)
 provide('rightDrawerOpen', rightDrawerOpen)
 const showSubtaskNumber = ref(0)
 const timelineIncludeBreaks = ref(false)
-const ringTheBell = ref(true)
-const flashAfterExtendedInactivity = ref(true)
+
 
 let searchText = ref('')
 const credsUsername = ref('')
@@ -681,7 +645,6 @@ const apiURL = ref('http://localhost:5437')
 const messengerHostPort = ref('localhost:50052')
 // let allProjects = []
 let selectedTask = ref()
-let flagFlashPomodoro = false
 
 // let previousUIState = {
 //   selectedTask: {},
@@ -697,22 +660,6 @@ let boardTreeSelected = ref(null)
 
 provide('globalSelectedTask', selectedTask)
 
-let pomodoroData = reactive({
-  timerActive: false, // is pomodoro timer on/off
-  session: 0, // Pomodoro Session number 1,3,5,7 working sessions, 2,4,6,8 break sessions
-  start: 0, // session start timestamp
-  epoch: 0, // timestamp (on future) when the current session ends
-  remaining: 0, // for paused sessions, how many remaining seconds the current session has
-  task: { idTask: null, title: 'Break' }, // current task, break sessions should have a falsy idTask
-  //  previousTask: {idTask: null, title: "Break"},
-  //  timerHandler: null, // settimeout handler
-  fullSessionDuration: 1500,
-  notifiedEndOfBreak: false,
-  breakExpiredATimeAgo: false,
-})
-
-const remainingTime = ref('00:25')
-const pomodoroSessions = ref([true, false, false, false, false, false, false, false, false])
 
 onBeforeMount(() => {
   //console.log('mainLayout.Before Mount')
@@ -738,9 +685,8 @@ onMounted(async () => {
     store_configuration(config)
     credsUsername.value = config.user
     currentUsername.value = config.user
-    ringTheBell.value = config.pomodoroRingTheBell
     rightDrawerWidth.value = Number(config.rightDrawerWidth ? config.rightDrawerWidth : 500)
-    flashAfterExtendedInactivity.value = config.pomodoroOptions.flashAfterExtendedInactivity
+
     if (config.apiURL) {
       apiURL.value = config.apiURL
     }
@@ -754,9 +700,7 @@ onMounted(async () => {
   await getData()
 })
 
-function isSessionActive(index) {
-  return pomodoroSessions.value[index] ? 'red' : 'primary'
-}
+
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value
@@ -835,6 +779,10 @@ watch(rightDrawerWidth, async () => {
   })
 })
 
+watch(headerTitle, async () => {
+  window.electronAPI.boardLoaded(headerTitle.value)
+})
+
 watch(selectedTags, async (newVal) => {
   console.log(`selectedTags ${selectedTags.value}`)
   console.log(`Updating selected tags ${newVal}, loadComplete? ${loadComplete}`)
@@ -855,31 +803,6 @@ watch(filterOutOldFinishedTasks, async () => {
   }
 })
 
-watch(pomodoroData, async (newVal) => {
-  // console.log("pomodoroData changed")
-  // console.log(newVal)
-  if (newVal.breakExpiredATimeAgo && flashAfterExtendedInactivity.value) {
-    flagFlashPomodoro = !flagFlashPomodoro
-  } else {
-    flagFlashPomodoro = false
-  }
-  let bgStyle = 'bg-primary'
-  if (flagFlashPomodoro) {
-    removeClassFromElement('mainHeader', bgStyle)
-    addClassToElement('mainHeader', 'noPomodoro')
-    removeClassFromElement('mainFooter', bgStyle)
-    addClassToElement('mainFooter', 'noPomodoro')
-    removeClassFromElement('rightHeader', bgStyle)
-    addClassToElement('rightHeader', 'noPomodoro')
-  } else {
-    removeClassFromElement('mainHeader', bgStyle)
-    addClassToElement('mainHeader', bgStyle)
-    removeClassFromElement('mainFooter', 'noPomodoro')
-    addClassToElement('mainFooter', bgStyle)
-    removeClassFromElement('rightHeader', 'noPomodoro')
-    addClassToElement('rightHeader', bgStyle)
-  }
-})
 
 async function applyDateRangeFilter() {
   if (loadComplete) {
@@ -962,20 +885,6 @@ async function readTaskQueue(board) {
   taskQueue.value = boardQueue
 }
 
-function addClassToElement(element, aClass) {
-  let el = document.getElementById(element)
-  if (el != null) {
-    el.classList.add(aClass)
-  }
-}
-
-function removeClassFromElement(element, aClass) {
-  let el = document.getElementById(element)
-  if (el != null) {
-    el.classList.remove(aClass)
-  }
-}
-
 async function doSearch() {
   boardExecuteOp.value = {}
   console.log(`Searching for ${searchText.value}...`)
@@ -1031,37 +940,6 @@ async function removeTagFromSelectedTask(tag) {
   await callApi('DELETE', `/user/tasks/${selectedTask.value.idTask}/tags/`, { tag: tag.idTag })
   const index = selectedTask.value.idTags.indexOf(tag.idTag)
   selectedTask.value.idTags = selectedTask.value.idTags.splice(index, 1)
-}
-
-async function pomodoroMenuClick() {
-  let recentTasks = await callApi('GET', 'user/tasks/recent/')
-  let rt = []
-  for (let task of recentTasks) {
-    rt.push({
-      label: `${task.key}: ${task.title} (${task.projectName})`,
-      value: {
-        idTask: task.idTask,
-        idProject: task.idProject,
-        description: `${task.key}: ${task.title} (${task.projectName})`,
-        title: task.title,
-        key: task.key,
-        color: task.color,
-      },
-    })
-  }
-  await window.electronAPI.pomodoroMenuClick(rt)
-}
-
-function setPomodoroDataValues(data) {
-  pomodoroData.timerActive = data.timerActive
-  pomodoroData.session = data.session
-  pomodoroData.start = data.start
-  pomodoroData.epoch = data.epoch
-  pomodoroData.remaining = data.remaining
-  pomodoroData.fullSessionDuration = data.fullSessionDuration
-  pomodoroData.notifiedEndOfBreak = data.notifiedEndOfBreak
-  pomodoroData.breakExpiredATimeAgo = data.breakExpiredATimeAgo
-  pomodoroData.task = data.task
 }
 
 function getCalendarActivity(aDate) {
@@ -1217,41 +1095,6 @@ window.electronAPI.onTaskUpdate(async (idTask) => {
   await readTaskQueue(currentBoard.value)
 })
 
-window.electronAPI.pomodoroTick(async (pomodoroMsg) => {
-  // console.log('Get message from pomodoro:')
-  // console.log(pomodoroMsg)
-  switch (pomodoroMsg.type) {
-    case 'pomodoroTaskStart':
-      setPomodoroDataValues(pomodoroMsg.pomodoroData)
-      break
-    case 'updateTimer':
-      //console.log('pomodoro tick')
-      remainingTime.value = pomodoroMsg.value.remainingTime
-      setPomodoroDataValues(pomodoroMsg.value.pomodoroData)
-      break
-    case 'pomodoroSetSession':
-      pomodoroSessions.value[pomodoroData.session] = false
-      pomodoroSessions.value[pomodoroMsg.value] = true
-      pomodoroData.session = pomodoroMsg.value
-      setPomodoroDataValues(pomodoroMsg.pomodoroData)
-      break
-    case 'pomodoroEnd':
-      document.getElementById('boxRing').play()
-      pomodoroData.session = pomodoroMsg.value
-      setPomodoroDataValues(pomodoroMsg.pomodoroData)
-      break
-    case 'pomodoroTaskChanged':
-      pomodoroData.session = pomodoroMsg.value
-      setPomodoroDataValues(pomodoroMsg.pomodoroData)
-      break
-  }
-})
-
-window.electronAPI.pomodoroToggleBell(async (flag) => {
-  console.log(`Ring the bell: ${flag}`)
-  ringTheBell.value = flag
-})
-
 function populateSubTasks(parentTask) {
   let result = []
   for (let task of parentTask) {
@@ -1323,10 +1166,5 @@ async function treeSelectedNode() {
     openSearchResult(task)
   }
 }
-
-window.electronAPI.pomodoroOptions(async (opts) => {
-  console.log(`Set Pomodoro options to ${opts}`)
-  flashAfterExtendedInactivity.value = opts.flashAfterExtendedInactivity
-})
 
 </script>
