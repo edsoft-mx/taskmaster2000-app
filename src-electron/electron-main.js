@@ -41,6 +41,7 @@ let grpcPomodoroClient = null;
 let grpcTaskClient = null
 let currentUser = "";
 let configuration = null
+
 const configDefaults = {
   token: null,
   user: null,
@@ -268,6 +269,17 @@ async function createMainWindow () {
   })
   console.log(`Loading main window @ ${process.env.APP_URL}`)
 
+  let newTab = {
+    id: `tab_${tabCounter}`,
+    name: `tab_${tabCounter}`,
+    title: `Welcome`,
+    active: true,
+    url: 'MainLayout',
+    isBoard: true,
+  }
+  tabCounter++
+  await createTab(newTab)
+
   //await mainWindow.loadURL(process.env.APP_URL+ `?page=MainLayout`)
   if (process.env.DEV) {
     await mainWindow.loadURL(process.env.APP_URL + `?page=tabbar`)
@@ -307,32 +319,11 @@ async function createMainWindow () {
     const [width, height] = mainWindow.getSize()
     saveConfiguration({mainWindowWidth: width, mainWindowHeight: height})
   })
-  if (tabs.size === 0) {
-    let newTab = {
-      id: `tab_${tabCounter}`,
-      name: `tab_${tabCounter}`,
-      title: `Welcome`,
-      active: true,
-      url: 'MainLayout',
-      isBoard: true
-    }
-    tabCounter++
-    await createTab(newTab)
-    const { view: _view, ...tabUI } = newTab
-    mainWindow.webContents.send('on-create-new-tab', tabUI)
-  }
-  else {
-    console.log('entering on unknown territory...')
-    let allTabs = []
-    for (let tabKey of tabs.keys()){
-      let tabFull = tabs.get(tabKey)
-      const { view: _view, ...tabUI } = tabFull
-      allTabs.push(tabUI)
-    }
-    mainWindow.webContents.send('on-restore-tabs', allTabs)
-  }
+
   const menu = Menu.buildFromTemplate(getMenu())
   Menu.setApplicationMenu(menu)
+  const { view: _view, ...tabUI } = newTab
+  mainWindow.webContents.send('on-restore-tabs', [tabUI])
 }
 
 function refreshMenu(){
