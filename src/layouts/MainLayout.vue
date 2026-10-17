@@ -1,40 +1,8 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <q-header elevated class="bg-primary text-white" id="mainHeader">
-      <q-toolbar>
-        <q-btn dense icon="menu_open" @click="toggleLeftDrawer"></q-btn>
-        <q-toolbar-title style="min-width: 190px">
-          <q-btn-dropdown color="primary" :label="headerTitle" @click="getBoardTree()" auto-close>
-            <q-tree
-              node-key="id"
-              :nodes="boardTree"
-              v-model:selected="boardTreeSelected"
-              @update:selected="treeSelectedNode()"
-            >
-            </q-tree>
-          </q-btn-dropdown>
-        </q-toolbar-title>
+    <q-header elevated class="bg-primary text-white" id="mainHeader"> </q-header>
 
-        <q-space></q-space>
-
-
-        <div style="margin-right: 8px">&nbsp;&nbsp;</div>
-        <q-tabs
-          v-model="rightDrawerTab"
-          shrink
-          dense
-          indicator-color="white"
-          v-if="rightDrawerOpen"
-        >
-          <q-tab name="tabTodayTimeline" icon="today" />
-          <q-tab name="tabSummary" icon="info" />
-          <!--q-tab name="tabQueue" icon="list" />
-          <q-tab name="tabFilters" icon="filter_alt" /-->
-        </q-tabs>
-      </q-toolbar>
-    </q-header>
-
-    <q-drawer v-model="leftDrawerOpen" side="left" width="250" overlay>
+    <q-drawer v-model="leftDrawerOpen" side="left" :width="250" overlay>
       <q-list bordered padding class="rounded-borders text-primary">
         <q-item
           v-for="board in boards"
@@ -325,9 +293,7 @@
       <router-view :showSubTask="showSubtaskNumber" :executeOp="boardExecuteOp"></router-view>
     </q-page-container>
 
-    <q-footer class="text-white; text-align: center; bg-primary" id="mainFooter">
-
-    </q-footer>
+    <q-footer class="text-white; text-align: center; bg-primary" id="mainFooter"> </q-footer>
   </q-layout>
 </template>
 
@@ -637,7 +603,6 @@ provide('rightDrawerOpen', rightDrawerOpen)
 const showSubtaskNumber = ref(0)
 const timelineIncludeBreaks = ref(false)
 
-
 let searchText = ref('')
 const credsUsername = ref('')
 const credsPassword = ref('')
@@ -655,11 +620,8 @@ let taskQueue = ref([])
 let queueSelectedTask = ref(null)
 // let today = ref(new Date().toISOString().split('T')[0].replaceAll('-','/'))
 let today = ref('')
-let boardTree = ref([])
-let boardTreeSelected = ref(null)
 
 provide('globalSelectedTask', selectedTask)
-
 
 onBeforeMount(() => {
   //console.log('mainLayout.Before Mount')
@@ -699,12 +661,6 @@ onMounted(async () => {
   today.value = `${todayD.getFullYear()}/${todayD.getMonth() + 1}/${todayD.getDate()}`
   await getData()
 })
-
-
-
-function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value
-}
 
 // function toggleRightDrawer () {
 //   rightDrawerOpen.value = !rightDrawerOpen.value
@@ -803,7 +759,6 @@ watch(filterOutOldFinishedTasks, async () => {
   }
 })
 
-
 async function applyDateRangeFilter() {
   if (loadComplete) {
     if (!filterByDate.value) {
@@ -872,7 +827,7 @@ async function readTaskQueue(board) {
     taskQueue.value = boardQueue
     return
   }
-  let boardTaskMap = await window.electronAPI.getFromGlobalCache('board', 'tasksMap')
+  let boardTaskMap = await window.electronAPI.getFromGlobalCache(`board-${board}`, 'tasksMap')
   // console.log(boardTaskMap)
   for (let element of queue.queue) {
     if (!boardTaskMap.has(element)) {
@@ -1095,76 +1050,13 @@ window.electronAPI.onTaskUpdate(async (idTask) => {
   await readTaskQueue(currentBoard.value)
 })
 
-function populateSubTasks(parentTask) {
-  let result = []
-  for (let task of parentTask) {
-    let t = {
-      id: `${task.idTask}`,
-      label: `${task.key} - ${task.title}`,
-      icon: 'task',
-      selectable: true,
-    }
-    if (task.state === 'Done') {
-      continue
-    }
-    if (task.subTasks != null && task.subTasks.length > 0) {
-      t.children = populateSubTasks(task.subTasks)
-    }
-    result.push(t)
-  }
-  return result
-}
+window.electronAPI.setBoardTab(async (idTab) => {
+  console.log(`got signal to set the right tab to: ${idTab}`)
+  rightDrawerTab.value = idTab
+})
 
-async function getBoardTree() {
-  if (boardTree.value.length > 0) {
-    return
-  }
-  boardTree.value = []
-  let projects = await window.electronAPI.getFromGlobalCache('board', 'projects')
-  for (let project of projects) {
-    let tasks = []
-    const sortedTasks = [...project.tasks].sort((a, b) => {
-      const dashA = a.key.lastIndexOf('-')
-      const dashB = b.key.lastIndexOf('-')
-      const preA = a.key.slice(0, dashA)
-      const preB = b.key.slice(0, dashB)
-      const numA = Number(a.key.slice(dashA + 1))
-      const numB = Number(b.key.slice(dashB + 1))
-      return preA.localeCompare(preB) || numA - numB
-    })
-    for (let task of sortedTasks) {
-      let t = {
-        id: `${task.idTask}`,
-        label: `${task.key} - ${task.title}`,
-        icon: 'task',
-        selectable: true,
-      }
-      if (task.state === 'Done') {
-        continue
-      }
-      if (task.subTasks != null && task.subTasks.length > 0) {
-        t.children = populateSubTasks(task.subTasks)
-      }
-      tasks.push(t)
-    }
-    boardTree.value.push({
-      id: `p:${project.idProject}`,
-      label: project.name,
-      icon: 'work_outline',
-      children: tasks,
-      selectable: false,
-    })
-  }
-}
-
-async function treeSelectedNode() {
-  console.log(boardTreeSelected.value)
-  let idTask = Number(boardTreeSelected.value)
-  let boardTaskMap = await window.electronAPI.getFromGlobalCache('board', 'tasksMap')
-  if (boardTaskMap.has(idTask)) {
-    let task = boardTaskMap.get(idTask)
-    openSearchResult(task)
-  }
-}
-
+window.electronAPI.toggleLeftDrawer(async () => {
+  //console.log(`got signal to set the right tab to: ${idTab}`)
+  leftDrawerOpen.value = !leftDrawerOpen.value
+})
 </script>

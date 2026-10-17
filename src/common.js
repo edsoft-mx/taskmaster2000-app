@@ -556,5 +556,47 @@ export class Timeline {
 
 }
 
-export {callApiLogin, callApi, callLogout, dummy, store_configuration}
+async function aLinkInterceptor(event, idBoard) {
+  console.log('aLinkInterceptor')
+  let cancel= false
+  // Check if the clicked element or any of its parent elements is an <a> tag
+  let target = event.target
+  while (target && target.tagName !== 'A') {
+    target = target.parentNode
+  }
+
+  // If a link was clicked
+  //console.log(target.classList)
+  let isInternal = false
+  if (target != null && target.classList != null && target.classList.contains('internalLink')) {
+    isInternal = true
+  }
+  if (target && target.tagName === 'A' && target.href && !isInternal) {
+    // Prevent the default behavior of the link
+    event.preventDefault()
+    cancel = true
+    if (target.href.startsWith('note://')) {
+      // jump to other note
+      console.log('opening note:// in a new tab')
+      let refTask = await callApi(
+        'GET',
+        `user/boards/${idBoard}/task-by-key/${target.href.substring(7)}`,
+      )
+      if (refTask != null) {
+        await window.electronAPI.openTaskInTab(refTask.idTask, refTask.key, idBoard)
+      }
+      return cancel
+    }
+    if (event.ctrlKey) {
+      await navigator.clipboard.writeText(target.href)
+      window.electronAPI.notifyMessage(event, `Link ${target.href} was copied to the clipboard`)
+    } else {
+      // Open the URL in the default browser
+      window.electronAPI.openExternalLink(event, target.href)
+    }
+  }
+  return cancel
+}
+
+export { callApiLogin, callApi, callLogout, dummy, store_configuration, aLinkInterceptor }
 

@@ -381,12 +381,12 @@ function showLess(state) {
         <!--div class="newTask" v-if="state.start && parent == null">
           <a href=":newEpic" @click="newEpic(state)" @click.prevent>+ Add a new epic</a>
         </div-->
-        <div class="newTask" v-if="stateTasksLength.get(state.state) > 7">
+        <div class="newTask" v-if="stateTasksLength.get(state.state) >= 7">
           Show...
-          <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state)">
+          <span v-if="stateDisplayLimit.get(state.state) <= stateTasksLength.get(state.state)">
             <a href="#more" class="internalLink" @click="showMore(state)" @click.prevent>More</a>
           </span>
-          <span v-if="stateDisplayLimit.get(state.state) < stateTasksLength.get(state.state)">
+          <span v-if="stateDisplayLimit.get(state.state) <= stateTasksLength.get(state.state)">
             &nbsp;|&nbsp;
             <a href="#more" class="internalLink" @click="showAll(state)" @click.prevent>All</a>
           </span>

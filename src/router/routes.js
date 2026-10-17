@@ -16,6 +16,11 @@ const routes = [
     ],
   },
   {
+    path: '/TaskInTab',
+    component: () => import('layouts/tabTask.vue'),
+    name: 'taskTab',
+  },
+  {
     path: '/timeline',
     component: () => import('layouts/timeline.vue'),
   },

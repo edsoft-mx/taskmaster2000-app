@@ -78,7 +78,9 @@ function mergeDefaults(defaults, stored) {
 let mainWindow = null
 const tabs = new Map() // id -> WebContentsView
 let activeTabId = null
-const TAB_BAR_HEIGHT = 50
+let tabCounter = 0
+
+const TAB_BAR_HEIGHT = 90
 
 let pomodoroWindow = null
 let ringTheBell = true;
@@ -154,6 +156,21 @@ function toggleInactivityAlert(){
 }
 
 function getMenu(){
+  let tabsDevTools = [
+    { type: 'normal', label: 'TabBar',
+      click: () => mainWindow.webContents.openDevTools({ mode: 'detach' })
+    },
+  ]
+  console.log(`populating menu-devtools ... ${tabs.size}`)
+  for (let tabKey of tabs.keys()) {
+    console.log('populating menu-devtools ...' + tabKey)
+    let tabFull = tabs.get(tabKey)
+    tabsDevTools.push({
+      type: 'normal',
+      label: tabKey,
+      click: () => tabFull.view.webContents.openDevTools({ mode: 'detach' }),
+    })
+  }
   return [
     {
       label: 'File',
@@ -188,9 +205,24 @@ function getMenu(){
           click: () => toggleInactivityAlert(),
         },
         { type: 'separator' },
-        { role: 'reload' },
+        {
+          type: 'normal',
+          label: 'reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            mainWindow?.webContents.reloadIgnoringCache()
+            for (let tabKey of tabs.keys()) {
+              let tabFull = tabs.get(tabKey)
+              tabFull.view.webContents.reload()
+            }
+          },
+        },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
+        {
+          label: 'open DevTools',
+          submenu: tabsDevTools
+        },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
@@ -243,10 +275,10 @@ async function createMainWindow () {
     await mainWindow.loadFile('index.html', { query: { page: 'tabbar' } })
   }
 
-  if (process.env.DEBUGGING) {
-     // if on DEV or Production with debug enabled
-     mainWindow.webContents.openDevTools()
-  }
+  // if (process.env.DEBUGGING) {
+  //    // if on DEV or Production with debug enabled
+  //    mainWindow.webContents.openDevTools()
+  // }
   // else {
   //   // we're on production; no access to devtools pls
   //   mainWindow.webContents.on('devtools-opened', () => {
@@ -255,8 +287,6 @@ async function createMainWindow () {
   // }
 
   pomodoroWindowOptions = config.pomodoroOptions
-  const menu = Menu.buildFromTemplate(getMenu())
-  Menu.setApplicationMenu(menu)
 
   mainWindow.on('closed', () => {
     if (platform !== 'darwin') {
@@ -277,42 +307,90 @@ async function createMainWindow () {
     const [width, height] = mainWindow.getSize()
     saveConfiguration({mainWindowWidth: width, mainWindowHeight: height})
   })
-  await createTab(0, 'MainLayout')
+  if (tabs.size === 0) {
+    let newTab = {
+      id: `tab_${tabCounter}`,
+      name: `tab_${tabCounter}`,
+      title: `Welcome`,
+      active: true,
+      url: 'MainLayout',
+      isBoard: true
+    }
+    tabCounter++
+    await createTab(newTab)
+    const { view: _view, ...tabUI } = newTab
+    mainWindow.webContents.send('on-create-new-tab', tabUI)
+  }
+  else {
+    console.log('entering on unknown territory...')
+    let allTabs = []
+    for (let tabKey of tabs.keys()){
+      let tabFull = tabs.get(tabKey)
+      const { view: _view, ...tabUI } = tabFull
+      allTabs.push(tabUI)
+    }
+    mainWindow.webContents.send('on-restore-tabs', allTabs)
+  }
+  const menu = Menu.buildFromTemplate(getMenu())
+  Menu.setApplicationMenu(menu)
 }
 
-async function createTab(id, url) {
-  console.log(`Creating tab ${id}: ${url}`)
+function refreshMenu(){
+  const menu = Menu.buildFromTemplate(getMenu())
+  Menu.setApplicationMenu(menu)
+}
+
+async function createTab(tabData) {
+  console.log(`Creating tab ${tabData.id}: ${tabData.url}`)
   const view = new WebContentsView({
-    webPreferences: { contextIsolation: true,
-    preload: path.resolve(
-      currentDir,
-      path.join(
-        process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
-        'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.resolve(
+        currentDir,
+        path.join(
+          process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+          'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+        ),
       ),
-    ),
-      }
+    },
   })
   if (process.env.DEV) {
-    await view.webContents.loadURL(process.env.APP_URL + `?page=${url}`)
-    view.webContents.openDevTools({ mode: 'detach' })
+    await view.webContents.loadURL(process.env.APP_URL + `?page=${tabData.url}`)
+    //view.webContents.openDevTools({ mode: 'detach' })
   } else {
-    await view.webContents.loadFile('index.html', { query: { page: url } })
+    let p = new URLSearchParams(`?page=${tabData.url}`)
+    let pageParams = {
+      page: p.page,
+    }
+    pageParams = { ...pageParams, ...Object.fromEntries(p) }
+    if (p.page === 'TaskInTab') {
+      delete pageParams.page
+      p.component = 'TaskTab'
+    }
+    await view.webContents.loadFile('index.html', { query: pageParams })
+    //view.webContents.openDevTools({ mode: 'detach' })
   }
-  tabs.set(id, view)
-  await switchToTab(id)
+  tabData.view = view
+  tabs.set(tabData.id, tabData)
+  await switchToTab(tabData.id)
 }
 
-async function switchToTab(id) {
-  const bounds = mainWindow.getContentBounds()
+async function switchToTab(tabId) {
   // console.log('main window bounds')
   // console.log(bounds)
   // remove currently visible view
-  if (activeTabId && tabs.has(activeTabId)) {
-    mainWindow.contentView.removeChildView(tabs.get(activeTabId))
+  if (!tabs.has(tabId)) {
+    console.log(`Could not found tab id ${tabId}`)
+    return
   }
-  console.log(`Activating view ${id}`)
-  const view = tabs.get(id)
+  const bounds = mainWindow.getContentBounds()
+  if (activeTabId && tabs.has(activeTabId) && activeTabId !== tabId) {
+    console.log(`removeChildView(${activeTabId})`)
+    mainWindow.contentView.removeChildView(tabs.get(activeTabId).view)
+  }
+  const tabData = tabs.get(tabId)
+  console.log(`Activating view ${tabData.id}`)
+  const view = tabData.view
   mainWindow.contentView.addChildView(view)
   const viewBounds = {
     x: 0,
@@ -322,7 +400,7 @@ async function switchToTab(id) {
   }
   //console.log('setting view bounds:', viewBounds)
   view.setBounds(viewBounds)
-  activeTabId = id
+  activeTabId = tabId
 }
 
 function resizeActiveTab() {
@@ -331,7 +409,7 @@ function resizeActiveTab() {
     return
   }
   const bounds = mainWindow.getContentBounds()
-  tabs.get(activeTabId).setBounds({
+  tabs.get(activeTabId).view.setBounds({
     x: 0,
     y: TAB_BAR_HEIGHT,
     width: bounds.width,
@@ -697,25 +775,79 @@ async function initHandlers(){
     storeOnGlobalCache(kind, id, data)
   })
   ipcMain.on('tm2000-add-new-empty-tab', () => {
-    const maxKey = Math.max(...tabs.keys())
-    createTab(maxKey+1, 'MainLayout')
+    console.log('tm2000-add-new-empty-tab')
     let newTab = {
-      id: maxKey + 1,
-      name: `new-Tab-${maxKey + 1}`,
-      title: `New Tab ${maxKey + 1}`,
-      active: true
+      id: `tab_${tabCounter}`,
+      name: `tab_${tabCounter}`,
+      title: `New Tab ${tabCounter + 1}`,
+      active: true,
+      url: 'MainLayout',
+      isBoard: true,
     }
-    mainWindow.webContents.send('on-create-new-tab', newTab)
+    tabCounter++
+    createTab(newTab)
+    const { view: _view, ...tabUI } = newTab
+    mainWindow.webContents.send('on-create-new-tab', tabUI)
+    refreshMenu()
+  })
+  ipcMain.on('tm2000-request-tab-list', () => {
+    console.log('tm2000-request-tab-list')
+    let allTabs = []
+    for (let tabKey of tabs.keys()) {
+      let tabFull = tabs.get(tabKey)
+      const { view: _view, ...tabUI } = tabFull
+      allTabs.push(tabUI)
+    }
+    mainWindow.webContents.send('on-restore-tabs', allTabs)
+  })
+  ipcMain.on('tm2000-open-task-in-tab', async (event, idTask, key, idBoard) => {
+    let newTab = {
+      id: `tab_${tabCounter}`,
+      name: `tab_${tabCounter}`,
+      title: `New Tab ${tabCounter + 1}`,
+      active: true,
+      url: `TaskInTab&idTask=${idTask}&idBoard=${idBoard}`,
+      isBoard: false,
+    }
+    tabCounter++
+    await createTab(newTab)
+    const { view: _view, ...tabUI } = newTab
+    mainWindow.webContents.send('on-create-new-tab', tabUI)
+    refreshMenu()
+  })
+
+  ipcMain.on('tm2000-board-tab-activated', (_event, tabId) => {
+    console.log(`tm2000-board-tab-activated(${tabId})`)
+    const activeView = tabs.get(activeTabId).view
+    activeView.webContents.send('set-right-drawer-tab', tabId)
+  })
+  ipcMain.on('tm2000-toggle-left-drawer', (_event) => {
+    const activeView = tabs.get(activeTabId).view
+    activeView.webContents.send('toggle-left-drawer')
   })
   ipcMain.on('tm2000-tab-activated', (_event, tabId) => {
+    console.log(`tm2000-tab-activated(${tabId})`)
     switchToTab(tabId)
   })
+  ipcMain.on('tm2000-removed-tab', (_event, tabId) => {
+    console.log('tm2000-removed-tab', tabId)
+    if (tabs.has(tabId)) {
+      tabs.delete(tabId)
+    }
+    refreshMenu()
+  })
   ipcMain.on('tm2000-board-loaded', (_event, boardName) => {
+    console.log('tm2000-board-loaded', boardName)
     mainWindow.webContents.send('tab-title-updated', activeTabId, boardName)
+    if (tabs.has(activeTabId)) {
+      let tab = tabs.get(activeTabId)
+      tab.title = boardName
+    }
   })
   addPomodoroTickSubscriber((message)=>{
     mainWindow.webContents.send('pomodoro-tick', message)
-    for (let [_, view] of tabs){
+    for (let [_, tab] of tabs){
+      const view = tab.view
       view.webContents.send('pomodoro-tick', message)
     }
   })
@@ -726,6 +858,7 @@ app.whenReady().then(async () => {
   // if (process.platform === 'linux') {
   //   app.set (path.join(__dirname, 'icons/icon.png'))
   // }
+  activeTabId=null
   await initGRPC()
   await initHandlers()
   await createMainWindow()
@@ -766,7 +899,8 @@ function taskWatcherStreamingCall(client, user) {
       console.log(updatedTask)
       //console.log(task)
       //mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
-      for (let [_, view] of tabs) {
+      for (let [_, tab] of tabs) {
+        const view = tab.view
         view.webContents.send(
           'on-task-update',
           updatedTask.id_task,

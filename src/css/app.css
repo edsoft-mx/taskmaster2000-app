@@ -79,22 +79,38 @@ div.selectedTask {
 }
 
 .summary h1{
-  font-size: 16pt;
+    font-size: 16pt;
+    font-weight: bold;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    line-height: 1.5rem;
+}
+
+.summary h2{
+  font-size: 15pt;
+    font-weight: bold;
+    margin-top: 8px;
+    margin-bottom: 6px;
+    line-height: 1.5rem;
 }
 
 .summary h3{
-  font-size: 14pt;
-  padding: 0px;
-  line-height: 1.2;
-  margin-top: 8px;
+    font-size: 14pt;
+    padding: 0px;
+    line-height: 1.2;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    font-weight: bold;
+    line-height: 1.5rem;
 }
 
 .summary h4{
-  font-size: 12pt;
-  padding: 0px;
-  margin-top: 8px;
-  margin-bottom: 4px;
-  font-weight: bold;
+    font-size: 13pt;
+    padding: 0px;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    font-weight: bold;
+    line-height: 1.5rem;
 }
 
 .summary p{
@@ -103,6 +119,10 @@ div.selectedTask {
 
 .summary img{
   vertical-align: middle;
+}
+
+.summary pre {
+    background-color: #d0d0d0;
 }
 
 .summary code{
@@ -194,8 +214,11 @@ button.buttonTaskAction2 {
   div.selectedTask {
     box-shadow: 10px 8px 8px rgba(76, 249, 251, 0.75)
   }
+    .summary pre {
+        background-color: #6F6F6F;
+    }
 
   .summary code {
-    background-color: #707070;
+    background-color: #6F6F6F;
   }
 }

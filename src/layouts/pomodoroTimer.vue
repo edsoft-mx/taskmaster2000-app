@@ -246,7 +246,7 @@ onMounted(async () => {
             :max="8"
           >
             <q-avatar size="32px" v-if="pomodoroData.session % 2 === 1">
-              <img src="to-work-in-an-office.png" title="Session 1" />
+              <img src="working.png" title="Session 1" />
             </q-avatar>
             <q-avatar
               icon="local_cafe"
@@ -294,7 +294,7 @@ onMounted(async () => {
           :max="8"
         >
           <q-avatar size="32px" v-if="pomodoroData.session % 2 === 1">
-            <img src="to-work-in-an-office.png" title="Session 1" />
+            <img src="working.png" title="Session 1" />
           </q-avatar>
           <q-avatar
             icon="local_cafe"

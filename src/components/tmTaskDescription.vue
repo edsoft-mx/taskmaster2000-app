@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, computed, onMounted } from 'vue'
+import { ref, defineProps, computed, onMounted, watch } from 'vue'
 
 // watch
 import { projectMap } from 'src/commonObjects'
@@ -17,6 +17,7 @@ const props = defineProps(['task'])
 const newNotes = ref('')
 const showNotesEditor = ref(false)
 const localNotes = ref('')
+const showCalendar = ref(true)
 
 const project = computed(() => {
   if (props.task == null) {
@@ -24,6 +25,10 @@ const project = computed(() => {
   }
   //console.log(`get project ${props.task.idProject}`)
   let prj = projectMap.get(props.task.idProject)
+  //console.log(prj)
+  if (prj == null || prj === '') {
+    console.log(`Could not get data for project ${props.task.idProject}`)
+  }
   return prj
 })
 
@@ -35,9 +40,9 @@ const getTaskNotes = computed(() => {
   }
 })
 
-onMounted(async () => {
-  console.log('mounted tmTaskDescription')
-  if (!props.task || !props.task.notes) {
+async function checkExternalNotes() {
+  if (!props.task.notes || !props.task.notes){
+    console.log('No data while checking external notes')
     return
   }
   console.log(props.task)
@@ -49,11 +54,20 @@ onMounted(async () => {
     if (match) {
       let xtra = await window.electronAPI.getLocalNote(props.task.notesDirectory + match[1])
       if (xtra) {
-        result += xtra + '\n'
+        result += '\n' + xtra + '\n'
       }
     }
   }
   localNotes.value = result
+}
+
+onMounted(async () => {
+  console.log('mounted tmTaskDescription')
+  if (!props.task || !props.task.notes) {
+    console.log(`this task does not have notes`)
+    return
+  }
+  await checkExternalNotes()
 })
 
 function getNormalizedTime(time) {
@@ -186,21 +200,33 @@ async function saveNotes() {
   console.log('Notes have been saved!')
 }
 
-//TODO: verify this watch, is triggering on initial rendering, causing an error
-// watch(
-//   () => taskChecklists,
-//   async (newVal) => {
-//     if (newVal==null || props.task==null){
-//       return
-//     }
-//     let data = {
-//       idBoard: props.task.idBoard,
-//       xtraData: props.task.xtraData,
-//     }
-//     await callApi("POST", `user/tasks/${props.task.idTask}`, data)
-//   },
-//   {deep: true}
-// )
+watch(
+  () => props.task,
+  async (newVal) => {
+    if (newVal == null) {
+      return
+    }
+    await checkExternalNotes()
+  },
+)
+
+watch(
+  () => taskChecklists,
+  async (newVal) => {
+    if (newVal==null || props.task==null || newVal.length === 0 ){
+      return
+    }
+    if (!props?.task?.idBoard || !props?.task?.xtraData) {
+      return
+    }
+    let data = {
+      idBoard: props.task.idBoard,
+      xtraData: props.task.xtraData,
+    }
+    await callApi("POST", `user/tasks/${props.task.idTask}`, data)
+  },
+  {deep: true}
+)
 
 function getJiraLink(selfLink) {
   const url = new URL(selfLink)
@@ -271,27 +297,28 @@ function getJiraLink(selfLink) {
         </div>
       </div>
       <div v-if="task.idTask" class="calendarDiv r-column">
-        <h4>Activity</h4>
+        <h4 class="cursor-pointer" @click="showCalendar = !showCalendar">Activity</h4>
         <p v-if="timeSpentToday"><b>Time Spent Today:</b> {{ timeSpentToday }}<br /></p>
         <p v-if="timeSpent"><b>Total Time Spent:</b> {{ timeSpent }}<br /></p>
-
-        <q-date
-          v-model="selectedDay"
-          today-btn
-          :events="getCalendarForTask"
-          :event-color="getTaskColor"
-        />
-        <br />
-        <q-btn
-          label="Set Start Date"
-          :disable="selectedDay === '' || !selectedTask"
-          @click="calendarSetStartDate"
-        />
-        <q-btn
-          label="Set Due Date"
-          :disable="selectedDay === '' || !selectedTask"
-          @click="calendarSetDueDate"
-        />
+        <div class="calendarContainer" v-if="showCalendar">
+          <q-date
+            v-model="selectedDay"
+            today-btn
+            :events="getCalendarForTask"
+            :event-color="getTaskColor"
+          />
+          <br />
+          <q-btn
+            label="Set Start Date"
+            :disable="selectedDay === '' || !selectedTask"
+            @click="calendarSetStartDate"
+          />
+          <q-btn
+            label="Set Due Date"
+            :disable="selectedDay === '' || !selectedTask"
+            @click="calendarSetDueDate"
+          />
+        </div>
       </div>
     </div>
     <slot name="subtasks">
@@ -373,25 +400,6 @@ div.responsive {
 
 div.calendarDiv {
   max-width: 330px;
-}
-
-.summary h1 {
-  font-size: 16px;
-}
-
-.summary h3 {
-  font-size: 14pt;
-  padding: 0px;
-  line-height: 1.2;
-  margin-top: 8px;
-}
-
-.summary h4 {
-  font-size: 12pt;
-  padding: 0px;
-  margin-top: 8px;
-  margin-bottom: 4px;
-  font-weight: bold;
 }
 
 .summary p {

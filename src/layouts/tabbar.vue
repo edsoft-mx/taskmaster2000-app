@@ -1,14 +1,52 @@
 <script setup>
 import { ref, onMounted, watch, reactive } from 'vue'
+import { useQuasar } from 'quasar'
 import { callApi, store_configuration } from 'src/common'
+
+const $q = useQuasar()
+
+import Vue3TabsChromeRaw from 'vue3-tabs-chrome'
+import 'vue3-tabs-chrome/dist/vue3-tabs-chrome.css'
+
+const Vue3TabsChrome = Vue3TabsChromeRaw.default || Vue3TabsChromeRaw
 
 defineOptions({
   name: 'TabBar',
 })
 
-let tabs = ref([{ id: 0, name: 'main', title: 'Welcome', active: true }])
+let tabs = reactive([])
+const tabRef = ref()
+//ref([{ id: 0, name: 'main', title: 'Welcome', active: true }])
 let activeTab = ref('main')
 let flagIgnore = false
+let activeTabIsBoard = ref(true)
+const rightDrawerTab = ref('tabTodayTimeline')
+
+function setTabRef(el) {
+  tabRef.value = el
+}
+
+const handleAdd = (label, key, isBoard) => {
+  let newTab = {
+    label,
+    key,
+    isBoard,
+    activeRightTab: isBoard ? 'tabTodayTimeline' : '',
+  }
+  console.log('Adding new tab')
+  console.log(newTab)
+  tabRef.value.addTab(newTab)
+  activeTab.value = key
+  activeTabIsBoard.value = isBoard
+  if (isBoard) {
+    rightDrawerTab.value = 'tabTodayTimeline'
+  }
+}
+
+const handleRemove = (tab, index) => {
+  console.log(tab, index)
+  window.electronAPI.tabRemoved(tab.key)
+}
 
 const remainingTime = ref('00:25')
 const pomodoroSessions = ref([true, false, false, false, false, false, false, false, false])
@@ -41,29 +79,39 @@ onMounted(async () => {
     }
     store_configuration(config)
   }
-  let body = document.getElementsByTagName('body')[0]
-  body.style.height = '40px'
-  ringTheBell.value = config.pomodoroRingTheBell
-  flashAfterExtendedInactivity.value = config.pomodoroOptions.flashAfterExtendedInactivity
+  window.electronAPI.requestTabList()
+  // let body = document.getElementsByTagName('body')[0]
+  // body.style.height = '40px'
+  // ringTheBell.value = config.pomodoroRingTheBell
+  // flashAfterExtendedInactivity.value = config.pomodoroOptions.flashAfterExtendedInactivity
 })
 
-window.electronAPI.NewTabCreated(async (newTab) => {
+window.electronAPI.onNewTabCreated(async (newTab) => {
   flagIgnore = true
   console.log('NewTabCreated')
   console.log(newTab)
-  tabs.value.push({
-    id: newTab.id,
-    name: newTab.name,
-    title: newTab.title,
-    active: newTab.active,
-  })
-  activeTab.value = newTab.name
+  handleAdd(newTab.title, newTab.name, newTab.isBoard)
   flagIgnore = false
 })
 
-window.electronAPI.TabTitleUpdated(async (tabId, title) => {
-  let item = tabs.value.find((item) => item.id === tabId)
-  item.title = title
+window.electronAPI.onTabsRestored(async (allTabs) => {
+  flagIgnore = true
+  console.log('Restoring tabs...')
+  for (let tab of allTabs) {
+    handleAdd(tab.title, tab.name, tab.isBoard)
+  }
+  flagIgnore = false
+})
+
+window.electronAPI.onTabTitleUpdated(async (tabId, title) => {
+  console.log(`Searching for ${tabId} tab`)
+  let item = tabs.find((item) => item.key === tabId)
+  if (item!=null) {
+    item.label = title
+  }
+  else {
+    console.log(`No tab found. (${tabId})`)
+  }
 })
 
 function newTab() {
@@ -79,18 +127,40 @@ watch(
     }
     console.log('Active tab has changed')
     console.log(newVal)
-    let item = tabs.value.find((item) => item.name === newVal)
+    let item = tabs.find((item) => item.key === newVal)
     console.log(item)
     if (item == null) {
       console.log('could not find ' + item)
       return
     }
-    window.electronAPI.tabActivated(item.id)
+    activeTabIsBoard.value = item.isBoard
+    flagIgnore = true
+    rightDrawerTab.value = item.activeRightTab
+    flagIgnore = false
+    window.electronAPI.tabActivated(item.key)
   },
 )
 
+watch(
+  () => rightDrawerTab.value,
+  (newVal) => {
+    if (flagIgnore) {
+      return
+    }
+    let item = tabs.find((item) => item.key === activeTab.value)
+    if (item != null) {
+      item.activeRightTab = newVal
+    }
+    window.electronAPI.boardTabActivated(newVal)
+  },
+)
+
+function toggleLeftDrawer() {
+  window.electronAPI.sendToggleLeftDrawer()
+}
+
 function isSessionActive(index) {
-  return pomodoroSessions.value[index] ? 'red' : 'primary'
+  return pomodoroSessions.value[index] ? 'red' : 'transparent'
 }
 
 window.electronAPI.pomodoroTick(async (pomodoroMsg) => {
@@ -157,7 +227,7 @@ watch(pomodoroData, async (newVal) => {
   } else {
     flagFlashPomodoro = false
   }
-  let bgStyle = 'bg-primary'
+  let bgStyle = 'bg-transparent'
   if (flagFlashPomodoro) {
     removeClassFromElement('mainHeader', bgStyle)
     addClassToElement('mainHeader', 'noPomodoro')
@@ -206,49 +276,87 @@ async function pomodoroMenuClick() {
 </script>
 
 <template>
-  <q-toolbar class="bg-primary">
-    <q-btn icon="add" @click="newTab()" />
-    <q-tabs v-model="activeTab" v-for="tab in tabs" v-bind:key="tab.id" align="left">
-      <q-tab :name="tab.name" :label="tab.title"> </q-tab>
-    </q-tabs>
-    <q-space></q-space>
-    <div>
-      <p
-        style="
-          margin-bottom: 2px;
-          max-width: 600px;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          overflow: hidden;
-        "
-      >
-        {{ pomodoroData.task?.key }}{{ pomodoroData.task ? ' - ' : ''
-        }}{{ pomodoroData.task?.title }}
-      </p>
+  <div style="position: relative">
+    <vue3-tabs-chrome
+      :tabs="tabs"
+      :ref="setTabRef"
+      v-model="activeTab"
+      :class="$q.dark.isActive ? 'theme-dark' : ''"
+      @remove="handleRemove"
+    >
+      <template v-slot:after>
+        <button
+          class="btn"
+          style="height: 20px; line-height: 20px; padding: 0 10px; margin-left: 0px"
+          @click="newTab()"
+        >
+          +
+        </button>
+      </template>
+    </vue3-tabs-chrome>
+
+    <div class="pomodoroPanel" :class="{ 'pomodoroPanel--dark': $q.dark.isActive }">
+      <div style="position: absolute; left: 4px; bottom: 4px">
+        <q-btn dense icon="menu_open" @click="toggleLeftDrawer"></q-btn>
+      </div>
+
+      <div>
+        <p
+          style="margin-bottom: 2px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden"
+        >
+          {{ pomodoroData.task?.key }}{{ pomodoroData.task ? ' - ' : ''
+          }}{{ pomodoroData.task?.title }}
+        </p>
+      </div>
+      <div style="margin-left: 8px">
+        <q-avatar size="32px" :color="isSessionActive(1)">
+          <img :src="$q.dark.isActive ? 'working.png' : 'working-dark.png'" title="Session 1" />
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
+        <q-avatar size="32px" :color="isSessionActive(3)">
+          <img :src="$q.dark.isActive ? 'working.png' : 'working-dark.png'" title="Session 2" />
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
+        <q-avatar size="32px" :color="isSessionActive(5)">
+          <img :src="$q.dark.isActive ? 'working.png' : 'working-dark.png'" title="Session 3" />
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
+        <q-avatar size="32px" :color="isSessionActive(7)">
+          <img :src="$q.dark.isActive ? 'working.png' : 'working-dark.png'" title="Session 4" />
+        </q-avatar>
+        <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
+      </div>
+      <div>
+        <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime"> </q-btn>
+      </div>
+      <div style="margin-left: 36px">
+        <q-tabs v-model="rightDrawerTab" shrink dense v-if="activeTabIsBoard">
+          <q-tab name="tabTodayTimeline" icon="today" />
+          <q-tab name="tabSummary" icon="info" />
+          <!--q-tab name="tabQueue" icon="list" />
+          <q-tab name="tabFilters" icon="filter_alt" /-->
+        </q-tabs>
+      </div>
     </div>
-    <div style="margin-left: 8px">
-      <q-avatar size="32px" :color="isSessionActive(1)">
-        <img src="to-work-in-an-office.png" title="Session 1" />
-      </q-avatar>
-      <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
-      <q-avatar size="32px" :color="isSessionActive(3)">
-        <img src="to-work-in-an-office.png" title="Session 2" />
-      </q-avatar>
-      <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
-      <q-avatar size="32px" :color="isSessionActive(5)">
-        <img src="to-work-in-an-office.png" title="Session 3" />
-      </q-avatar>
-      <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
-      <q-avatar size="32px" :color="isSessionActive(7)">
-        <img src="to-work-in-an-office.png" title="Session 4" />
-      </q-avatar>
-      <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
-    </div>
-    <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime"> </q-btn>
-  </q-toolbar>
+  </div>
+
   <div id="hiddenStuff" style="display: none">
     <audio id="boxRing" controls src="campana-de-box.mp3" v-if="ringTheBell"></audio>
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+div.pomodoroPanel {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  color: #5b5c67;
+  /*background-color: #a0a0a0;*/
+}
+
+div.pomodoroPanel.pomodoroPanel--dark {
+  color: white;
+}
+</style>

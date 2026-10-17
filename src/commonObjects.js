@@ -193,6 +193,7 @@ class BoardTask {
     this.idTask= data.idTask
     this.initialState= data.initialState
     this.isExternal= data.isExternal
+    this.externalStatus = data.externalStatus
     this.key= data.key
     this.notes= data.notes
     this.priority= data.priority
