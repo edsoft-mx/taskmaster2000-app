@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { callApi, store_configuration } from 'src/common'
 import TMTimeLine from 'components/tmTimeline.vue'
 
@@ -19,6 +19,28 @@ let pomodoroData = reactive({
 let today = ref('')
 let pomodoroLabels = ref('bottom')
 const remainingTime = ref('00:25')
+const flashAfterExtendedInactivity = ref(true)
+
+const workingSession = computed(() => {
+  let result = ''
+  switch (pomodoroData.session) {
+    case 1:
+      result = '1'
+      break
+    case 3:
+      result = '2'
+      break
+    case 5:
+      result = '3'
+      break
+    case 7:
+      result = '4'
+      break
+  }
+  return result
+})
+
+let showTimeline = ref(true)
 const pomodoroSessions = ref([true, false, false, false, false, false, false, false, false])
 let flagFlashPomodoro = false
 let ringTheBell = ref(true)
@@ -42,9 +64,9 @@ async function pomodoroMenuClick() {
   await window.electronAPI.pomodoroMenuClick(rt)
 }
 
-function isSessionActive(index) {
-  return pomodoroSessions.value[index] ? 'red' : 'primary'
-}
+// function isSessionActive(index) {
+//   return pomodoroSessions.value[index] ? 'red' : 'primary'
+// }
 
 function setPomodoroDataValues(data) {
   pomodoroData.timerActive = data.timerActive
@@ -56,11 +78,12 @@ function setPomodoroDataValues(data) {
   pomodoroData.notifiedEndOfBreak = data.notifiedEndOfBreak
   pomodoroData.breakExpiredATimeAgo = data.breakExpiredATimeAgo
   pomodoroData.task = data.task
+  //console.log(pomodoroData)
 }
 
 window.electronAPI.pomodoroTick(async (pomodoroMsg) => {
   // console.log('Get message from pomodoro:')
-  // console.log(pomodoroMsg)
+  console.log(pomodoroMsg)
   switch (pomodoroMsg.type) {
     case 'pomodoroTaskStart':
       console.log('pomodoroTaskStart')
@@ -114,37 +137,44 @@ async function init() {
 watch(pomodoroData, async (newVal) => {
   //console.log("pomodoroData changed")
   //console.log(newVal)
-  if (newVal.breakExpiredATimeAgo) {
+  if (newVal.breakExpiredATimeAgo && flashAfterExtendedInactivity.value) {
     flagFlashPomodoro = !flagFlashPomodoro
   } else {
     flagFlashPomodoro = false
   }
+  let bgStyle = 'bg-primary'
   if (flagFlashPomodoro) {
-    removeClassFromElement('mainHeader', 'bg-primary')
+    removeClassFromElement('mainHeader', bgStyle)
     addClassToElement('mainHeader', 'noPomodoro')
-    removeClassFromElement('mainFooter', 'bg-primary')
+    removeClassFromElement('mainFooter', bgStyle)
     addClassToElement('mainFooter', 'noPomodoro')
-    removeClassFromElement('rightHeader', 'bg-primary')
+    removeClassFromElement('rightHeader', bgStyle)
     addClassToElement('rightHeader', 'noPomodoro')
   } else {
-    removeClassFromElement('mainHeader', 'noPomodoro')
-    addClassToElement('mainHeader', 'bg-primary')
+    removeClassFromElement('mainHeader', bgStyle)
+    addClassToElement('mainHeader', bgStyle)
     removeClassFromElement('mainFooter', 'noPomodoro')
-    addClassToElement('mainFooter', 'bg-primary')
+    addClassToElement('mainFooter', bgStyle)
     removeClassFromElement('rightHeader', 'noPomodoro')
-    addClassToElement('rightHeader', 'bg-primary')
+    addClassToElement('rightHeader', bgStyle)
   }
 })
 
-window.electronAPI.pomodoroLabelsPosition(async (position) => {
-  console.log(`Set panel position to ${position}`)
-  pomodoroLabels.value = position
+window.electronAPI.pomodoroOptions(async (opts) => {
+  console.log(`Set Pomodoro options to ${opts}`)
+  pomodoroLabels.value = opts.pomodoroLabelsPosition
+  showTimeline.value = opts.showTimeline
 })
 
 window.electronAPI.pomodoroToggleBell(async (flag) => {
   console.log(`Ring the bell: ${flag}`)
   ringTheBell.value = flag
 })
+
+function rightAlignmentClass() {
+  let r = !showTimeline.value && pomodoroLabels.value === 'right'
+  return r ? 'MainContainer2' : 'MainContainer'
+}
 
 onMounted(async () => {
   console.log('mounted')
@@ -155,7 +185,14 @@ onMounted(async () => {
     if (!config) {
       return
     }
-    pomodoroLabels.value = config.pomodoroLabels
+    pomodoroLabels.value = config.pomodoroOptions.pomodoroLabelsPosition
+    showTimeline.value = config.pomodoroOptions.showTimeline
+    flashAfterExtendedInactivity.value = config.pomodoroOptions.flashAfterExtendedInactivity
+    if (!showTimeline.value && pomodoroLabels.value === 'right') {
+      let main = document.getElementById('mainContainerMain')
+      removeClassFromElement(main, 'MainContainer')
+      addClassToElement(main, 'MainContainer2')
+    }
     ringTheBell.value = config.pomodoroRingTheBell
     store_configuration(config)
   }
@@ -165,8 +202,8 @@ onMounted(async () => {
 
 <template>
   <div class="metaContainer">
-    <div class="MainContainer">
-      <div class="timelineContainer">
+    <div :class="rightAlignmentClass()" id="mainContainerMain">
+      <div class="timelineContainer" v-if="showTimeline">
         <div style="width: 100%; padding: 16px; justify-content: right">
           <TMTimeLine
             :include-breaks="false"
@@ -179,9 +216,9 @@ onMounted(async () => {
         </div>
       </div>
       <div
-        class="bg-primary flex-container"
+        class="flex-container"
         id="mainHeader"
-        style="max-height: 40px; margin: 0; padding: 0"
+        style="margin: 0; padding: 0"
         v-if="pomodoroLabels === 'bottom'"
       >
         <div
@@ -193,62 +230,97 @@ onMounted(async () => {
             }}{{ pomodoroData.task?.title }}
           </div>
         </div>
-        <div style="margin-left: 8px" class="flex-items statusBar">
-          <q-avatar size="32px" :color="isSessionActive(1)">
-            <img src="to-work-in-an-office.png" title="Session 1" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
-          <q-avatar size="32px" :color="isSessionActive(3)">
-            <img src="to-work-in-an-office.png" title="Session 2" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
-          <q-avatar size="32px" :color="isSessionActive(5)">
-            <img src="to-work-in-an-office.png" title="Session 3" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
-          <q-avatar size="32px" :color="isSessionActive(7)">
-            <img src="to-work-in-an-office.png" title="Session 4" />
-          </q-avatar>
-          <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
+
+        <div class="flex-items">
+          <q-btn icon="timer" @click="pomodoroMenuClick" label="" />
+          <q-circular-progress
+            show-value
+            font-size="12px"
+            :value="pomodoroData.session"
+            size="75px"
+            :thickness="0.33"
+            color="orange"
+            track-color="grey-3"
+            class="q-ma-md"
+            :min="0"
+            :max="8"
+          >
+            <q-avatar size="32px" v-if="pomodoroData.session % 2 === 1">
+              <img src="working.png" title="Session 1" />
+            </q-avatar>
+            <q-avatar
+              icon="local_cafe"
+              size="32px"
+              title="Break 1"
+              v-if="pomodoroData.session % 2 === 0"
+            />
+            {{ workingSession }}
+          </q-circular-progress>
         </div>
         <div class="flex-items">
-          <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime" />
+          <q-circular-progress
+            show-value
+            font-size="12px"
+            :value="pomodoroData.fullSessionDuration - pomodoroData.remaining"
+            size="75px"
+            :thickness="0.33"
+            track-color="light-blue"
+            color="grey-3"
+            class="q-ma-md"
+            :min="0"
+            :max="pomodoroData.fullSessionDuration"
+            reverse
+          >
+            {{ remainingTime }}
+          </q-circular-progress>
         </div>
       </div>
     </div>
-    <div id="rightHeader" class="bg-primary rightHeader" v-if="pomodoroLabels === 'right'">
+    <div id="rightHeader" class="rightHeader" v-if="pomodoroLabels === 'right'">
       <div class="taskTextRight">
         {{ pomodoroData.task?.key }}<br />{{ pomodoroData.task?.title }}
-        <br />
-        {{ remainingTime }}
       </div>
-      <div style="width: 100%; margin: 8px; text-align: center; justify-content: center">
-        <q-avatar size="32px" :color="isSessionActive(1)">
-          <img src="to-work-in-an-office.png" title="Session 1" />
-        </q-avatar>
+      <div style="width: 100%; text-align: center; justify-content: center">
+        <q-circular-progress
+          show-value
+          font-size="12px"
+          :value="pomodoroData.session"
+          size="75px"
+          :thickness="0.33"
+          color="orange"
+          track-color="grey-3"
+          class="q-ma-md"
+          :min="0"
+          :max="8"
+        >
+          <q-avatar size="32px" v-if="pomodoroData.session % 2 === 1">
+            <img src="working.png" title="Session 1" />
+          </q-avatar>
+          <q-avatar
+            icon="local_cafe"
+            size="32px"
+            title="Break 1"
+            v-if="pomodoroData.session % 2 === 0"
+          />
+          {{ workingSession }}
+        </q-circular-progress>
+        <q-circular-progress
+          show-value
+          font-size="12px"
+          :value="pomodoroData.fullSessionDuration - pomodoroData.remaining"
+          size="75px"
+          :thickness="0.33"
+          track-color="light-blue"
+          color="grey-3"
+          class="q-ma-md"
+          :min="0"
+          :max="pomodoroData.fullSessionDuration"
+          reverse
+        >
+          {{ remainingTime }}
+        </q-circular-progress>
         <br />
-        <q-avatar icon="local_cafe" size="32px" title="Break 1" :color="isSessionActive(2)" />
-        <br />
-        <q-avatar size="32px" :color="isSessionActive(3)">
-          <img src="to-work-in-an-office.png" title="Session 2" />
-        </q-avatar>
-        <br />
-        <q-avatar icon="local_cafe" size="32px" title="Break 2" :color="isSessionActive(4)" />
-        <br />
-        <q-avatar size="32px" :color="isSessionActive(5)">
-          <img src="to-work-in-an-office.png" title="Session 3" />
-        </q-avatar>
-        <br />
-        <q-avatar icon="local_cafe" size="32px" title="Break 3" :color="isSessionActive(6)" />
-        <br />
-        <q-avatar size="32px" :color="isSessionActive(7)">
-          <img src="to-work-in-an-office.png" title="Session 4" />
-        </q-avatar>
-        <br />
-        <q-avatar icon="local_cafe" size="32px" title="Break 5" :color="isSessionActive(8)" />
-        <br />
-        <br />
-        <q-btn icon="hourglass_bottom" @click="pomodoroMenuClick" :label="remainingTime" />
+        <q-btn icon="timer" @click="pomodoroMenuClick" />
       </div>
     </div>
   </div>
@@ -270,6 +342,13 @@ body {
   flex: 4;
 }
 
+.MainContainer2 {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
 .metaContainer {
   display: flex;
   flex-direction: row;
@@ -279,7 +358,7 @@ body {
 
 #mainHeader {
   flex-shrink: 0;
-  height: 50px;
+  /* height: 50px; */
 }
 
 .timelineContainer {
@@ -302,10 +381,10 @@ body {
 .taskText {
   padding: 0 4px;
   margin: 0;
-  max-width: 600px;
-  text-overflow: ellipsis;
+  /*max-width: 600px;*/
+  /* text-overflow: ellipsis;*/
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
 }
 
@@ -341,7 +420,7 @@ body {
 
 .flex-items:nth-child(2) {
   display: block;
-  flex-grow: 1;
+  flex-grow: 0;
   flex-shrink: 1;
   flex-basis: auto;
   align-self: auto;
@@ -351,7 +430,7 @@ body {
 
 .flex-items:nth-child(3) {
   display: block;
-  flex-grow: 1;
+  flex-grow: 0;
   flex-shrink: 1;
   flex-basis: auto;
   align-self: auto;

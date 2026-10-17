@@ -1,4 +1,13 @@
-import { app, BrowserWindow, ipcMain, protocol, Notification, Menu, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  protocol,
+  WebContentsView,
+  Notification,
+  Menu,
+  shell,
+} from 'electron'
 import log from 'electron-log'
 import path, {dirname} from 'path'
 import os from 'os'
@@ -32,14 +41,55 @@ let grpcPomodoroClient = null;
 let grpcTaskClient = null
 let currentUser = "";
 let configuration = null
+const configDefaults = {
+  token: null,
+  user: null,
+  apiURL: null,
+  messengerHostPort: null,
+  mainWindowWidth: 1200,
+  mainWindowHeight: 800,
+  rightDrawerWidth: 500,
+  pomodoroRingTheBell: true,
+  pomodoroOptions: {
+    showTimeline: true,
+    showMenuAlways: true,
+    pomodoroLabelsPosition: 'bottom',
+    flashAfterExtendedInactivity: true,
+  },
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeDefaults(defaults, stored) {
+  let merged = { ...defaults, ...stored }
+  for (let key in defaults) {
+    if (isPlainObject(defaults[key]) && isPlainObject(stored[key])) {
+      merged[key] = mergeDefaults(defaults[key], stored[key])
+    }
+  }
+  return merged
+}
 
 // import readline from 'readline'
 // import { Readable } from 'stream'
 
 let mainWindow = null
+const tabs = new Map() // id -> WebContentsView
+let activeTabId = null
+let tabCounter = 0
+
+const TAB_BAR_HEIGHT = 90
+
 let pomodoroWindow = null
-let pomodoroLabels = 'bottom';
 let ringTheBell = true;
+let pomodoroWindowOptions = {
+  showTimeline : true,
+  showMenuAlways: true,
+  pomodoroLabelsPosition: 'bottom',
+  flashAfterExtendedInactivity: true
+}
 let toolWindows = new Map()
 let taskWindows = new Map()
 // let epicWindows = new Map()
@@ -62,12 +112,12 @@ function getConfiguration(){
   if (!configuration){
     let basePath = app.getPath('userData')
     const configFile = path.join(basePath, 'config.json')
-    let prevConf = null
+    let diskConf = {}
     if (fs.existsSync(configFile)) {
-      prevConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+      diskConf = JSON.parse(fs.readFileSync(configFile, 'utf8'))
     }
     console.log(`Retrieved configuration from ${configFile}`)
-    configuration = prevConf
+    configuration = mergeDefaults(configDefaults, diskConf)
   }
   return configuration
 }
@@ -81,7 +131,7 @@ function saveConfiguration(config){
   }
   let newConf = {...prevConf, ...config}
   fs.writeFileSync(configFile, JSON.stringify(newConf))
-  configuration= newConf
+  configuration = mergeDefaults(configDefaults, newConf)
 }
 
 async function getLocalNote(event, notePath){
@@ -95,7 +145,32 @@ async function getLocalNote(event, notePath){
   return note
 }
 
+function toggleInactivityAlert(){
+  pomodoroWindowOptions.flashAfterExtendedInactivity =
+    !pomodoroWindowOptions.flashAfterExtendedInactivity
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+  }
+  mainWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+}
+
 function getMenu(){
+  let tabsDevTools = [
+    { type: 'normal', label: 'TabBar',
+      click: () => mainWindow.webContents.openDevTools({ mode: 'detach' })
+    },
+  ]
+  console.log(`populating menu-devtools ... ${tabs.size}`)
+  for (let tabKey of tabs.keys()) {
+    console.log('populating menu-devtools ...' + tabKey)
+    let tabFull = tabs.get(tabKey)
+    tabsDevTools.push({
+      type: 'normal',
+      label: tabKey,
+      click: () => tabFull.view.webContents.openDevTools({ mode: 'detach' }),
+    })
+  }
   return [
     {
       label: 'File',
@@ -123,10 +198,31 @@ function getMenu(){
           checked: ringTheBell,
           click: () => togglePomodoroBell(),
         },
+        {
+          type: 'checkbox',
+          label: 'Alert after inactivity period',
+          checked: pomodoroWindowOptions.flashAfterExtendedInactivity,
+          click: () => toggleInactivityAlert(),
+        },
         { type: 'separator' },
-        { role: 'reload' },
+        {
+          type: 'normal',
+          label: 'reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            mainWindow?.webContents.reloadIgnoringCache()
+            for (let tabKey of tabs.keys()) {
+              let tabFull = tabs.get(tabKey)
+              tabFull.view.webContents.reload()
+            }
+          },
+        },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
+        {
+          label: 'open DevTools',
+          submenu: tabsDevTools
+        },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
@@ -142,13 +238,14 @@ async function createMainWindow () {
   /**
    * Initial window options
    */
+  let config = await getConfiguration()
   console.log('Creating main window...')
   let mainWindowWidth = 1200
   let mainWindowHeight = 800
-  if (configuration.mainWindowWidth) {
+  if (config.mainWindowWidth) {
     mainWindowWidth = configuration.mainWindowWidth
   }
-  if (configuration.mainWindowHeight) {
+  if (config.mainWindowHeight) {
     mainWindowHeight = configuration.mainWindowHeight
   }
   mainWindow = new BrowserWindow({
@@ -173,24 +270,24 @@ async function createMainWindow () {
 
   //await mainWindow.loadURL(process.env.APP_URL+ `?page=MainLayout`)
   if (process.env.DEV) {
-    await mainWindow.loadURL(process.env.APP_URL + `?page=MainLayout`)
+    await mainWindow.loadURL(process.env.APP_URL + `?page=tabbar`)
   } else {
-    await mainWindow.loadFile('index.html', {query: {page: 'MainLayout'}})
+    await mainWindow.loadFile('index.html', { query: { page: 'tabbar' } })
   }
 
-  const menu = Menu.buildFromTemplate(getMenu())
-  Menu.setApplicationMenu(menu)
-
-  if (process.env.DEBUGGING) {
-     // if on DEV or Production with debug enabled
-     mainWindow.webContents.openDevTools()
-  }
+  // if (process.env.DEBUGGING) {
+  //    // if on DEV or Production with debug enabled
+  //    mainWindow.webContents.openDevTools()
+  // }
   // else {
   //   // we're on production; no access to devtools pls
   //   mainWindow.webContents.on('devtools-opened', () => {
   //     mainWindow.webContents.closeDevTools()
   //   })
   // }
+
+  pomodoroWindowOptions = config.pomodoroOptions
+
   mainWindow.on('closed', () => {
     if (platform !== 'darwin') {
       for (const [key, aWindow] of taskWindows.entries()) {
@@ -205,8 +302,118 @@ async function createMainWindow () {
     mainWindow = null
   })
   mainWindow.on('resize', ()=>{
+    //console.log('Window resize')
+    resizeActiveTab()
     const [width, height] = mainWindow.getSize()
     saveConfiguration({mainWindowWidth: width, mainWindowHeight: height})
+  })
+  if (tabs.size === 0) {
+    let newTab = {
+      id: `tab_${tabCounter}`,
+      name: `tab_${tabCounter}`,
+      title: `Welcome`,
+      active: true,
+      url: 'MainLayout',
+      isBoard: true
+    }
+    tabCounter++
+    await createTab(newTab)
+    const { view: _view, ...tabUI } = newTab
+    mainWindow.webContents.send('on-create-new-tab', tabUI)
+  }
+  else {
+    console.log('entering on unknown territory...')
+    let allTabs = []
+    for (let tabKey of tabs.keys()){
+      let tabFull = tabs.get(tabKey)
+      const { view: _view, ...tabUI } = tabFull
+      allTabs.push(tabUI)
+    }
+    mainWindow.webContents.send('on-restore-tabs', allTabs)
+  }
+  const menu = Menu.buildFromTemplate(getMenu())
+  Menu.setApplicationMenu(menu)
+}
+
+function refreshMenu(){
+  const menu = Menu.buildFromTemplate(getMenu())
+  Menu.setApplicationMenu(menu)
+}
+
+async function createTab(tabData) {
+  console.log(`Creating tab ${tabData.id}: ${tabData.url}`)
+  const view = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.resolve(
+        currentDir,
+        path.join(
+          process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
+          'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
+        ),
+      ),
+    },
+  })
+  if (process.env.DEV) {
+    await view.webContents.loadURL(process.env.APP_URL + `?page=${tabData.url}`)
+    //view.webContents.openDevTools({ mode: 'detach' })
+  } else {
+    let p = new URLSearchParams(`?page=${tabData.url}`)
+    let pageParams = {
+      page: p.page,
+    }
+    pageParams = { ...pageParams, ...Object.fromEntries(p) }
+    if (p.page === 'TaskInTab') {
+      delete pageParams.page
+      p.component = 'TaskTab'
+    }
+    await view.webContents.loadFile('index.html', { query: pageParams })
+    //view.webContents.openDevTools({ mode: 'detach' })
+  }
+  tabData.view = view
+  tabs.set(tabData.id, tabData)
+  await switchToTab(tabData.id)
+}
+
+async function switchToTab(tabId) {
+  // console.log('main window bounds')
+  // console.log(bounds)
+  // remove currently visible view
+  if (!tabs.has(tabId)) {
+    console.log(`Could not found tab id ${tabId}`)
+    return
+  }
+  const bounds = mainWindow.getContentBounds()
+  if (activeTabId && tabs.has(activeTabId) && activeTabId !== tabId) {
+    console.log(`removeChildView(${activeTabId})`)
+    mainWindow.contentView.removeChildView(tabs.get(activeTabId).view)
+  }
+  const tabData = tabs.get(tabId)
+  console.log(`Activating view ${tabData.id}`)
+  const view = tabData.view
+  mainWindow.contentView.addChildView(view)
+  const viewBounds = {
+    x: 0,
+    y: TAB_BAR_HEIGHT,
+    width: bounds.width,
+    height: bounds.height - TAB_BAR_HEIGHT,
+  }
+  //console.log('setting view bounds:', viewBounds)
+  view.setBounds(viewBounds)
+  activeTabId = tabId
+}
+
+function resizeActiveTab() {
+  if (activeTabId==null) {
+    console.log('no active tab')
+    return
+  }
+  const bounds = mainWindow.getContentBounds()
+  tabs.get(activeTabId).view.setBounds({
+    x: 0,
+    y: TAB_BAR_HEIGHT,
+    width: bounds.width,
+    height: bounds.height - TAB_BAR_HEIGHT,
   })
 }
 
@@ -328,7 +535,8 @@ async function openTaskWindow(page, params){
     if (process.env.DEV) {
       await taskWindow.loadURL(process.env.APP_URL + `?component=taskEditor${params}`)
     } else {
-      console.log(`Loading index.html with ${pageParams}`)
+      console.log("Loading index.html with pageParams")
+      console.log(pageParams)
       await taskWindow.loadFile('index.html', {query: pageParams})
     }
 
@@ -347,68 +555,15 @@ async function openTaskWindow(page, params){
   }
 }
 
-// async function openEpicWindow(page, params){
-//   let pageParams = { page: page }
-//   if (params) {
-//     let p = new URLSearchParams(params)
-//     pageParams = { ...pageParams, ...Object.fromEntries(p) }
-//     console.log('Params of new window:')
-//     console.log(pageParams)
-//     params = `&${params}`
-//     console.log(`tm2000-openPage: ${page}${params}`)
-//   } else {
-//     console.log(`tm2000-openPage: ${page}`)
-//     params=''
-//   }
-//
-//   if (!epicWindows.has(`${page}${params}`)) {
-//     let epicWindow = new BrowserWindow({
-//       icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
-//       width: 1024,
-//       height: 600,
-//       useContentSize: true,
-//       webPreferences: {
-//         contextIsolation: true,
-//         // More info: https://v2.quasar.dev/quasar-cli-webpack/developing-electron-apps/electron-preload-script
-//         preload: path.resolve(
-//           currentDir,
-//           path.join(
-//             process.env.QUASAR_ELECTRON_PRELOAD_FOLDER,
-//             'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION,
-//           ),
-//         ),
-//       },
-//     })
-//     //epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
-//     if (process.env.DEV) {
-//       await epicWindow.loadURL(process.env.APP_URL + `?page=${page}${params}`)
-//     } else {
-//       await epicWindow.loadFile('index.html', { query: pageParams })
-//     }
-//     epicWindows.set(`${page}${params}`, epicWindow)
-//     epicWindow.on('closed', () => {
-//       // if (mainWindow){
-//       //   mainWindow.webContents.send('updateBoard')
-//       // }
-//       epicWindows.delete(`${page}${params}`);
-//     })
-//   }
-//   else{
-//     let aEpicWindow = epicWindows.get(`${page}${params}`);
-//     aEpicWindow.show()
-//     aEpicWindow.focus()
-//   }
-// }
-
 function openTimeline(){
   openWindow('timeline')
 }
 
 function setPomodoroLabels(position){
-  pomodoroLabels = position
-  saveConfiguration({pomodoroLabels: position})
+  pomodoroWindowOptions.pomodoroLabelsPosition = position
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
   if (pomodoroWindow){
-    pomodoroWindow.webContents.send('pomodoro-labels-position', pomodoroLabels)
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
   }
 }
 
@@ -420,6 +575,23 @@ function togglePomodoroBell(){
     pomodoroWindow.webContents.send('pomodoro-toggle-ring-the-bell', ringTheBell)
   }
 }
+
+function toggleTimeline() {
+  pomodoroWindowOptions.showTimeline = !pomodoroWindowOptions.showTimeline
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+  }
+}
+
+function togglePomodoroShowMenu() {
+  pomodoroWindowOptions.showMenuAlways = !pomodoroWindowOptions.showMenuAlways
+  saveConfiguration({ pomodoroOptions: pomodoroWindowOptions })
+  if (pomodoroWindow) {
+    pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
+  }
+}
+
 
 function getMenuPomodoroTimer() {
   return [
@@ -444,18 +616,34 @@ function getMenuPomodoroTimer() {
             {
               type: 'radio',
               label: 'Bottom',
-              checked: pomodoroLabels==='bottom',
+              checked: pomodoroWindowOptions.pomodoroLabelsPosition === 'bottom',
               click: () => setPomodoroLabels('bottom'),
             },
-            { type: 'radio', label: 'Right', checked: pomodoroLabels==='right',
-              click: () => setPomodoroLabels('right') },
+            {
+              type: 'radio',
+              label: 'Right',
+              checked: pomodoroWindowOptions.pomodoroLabelsPosition === 'right',
+              click: () => setPomodoroLabels('right'),
+            },
           ],
         },
         {
           type: 'checkbox',
           label: 'Ring the bell when Pomodoro period ends',
           checked: ringTheBell,
-          click: () => togglePomodoroBell()
+          click: () => togglePomodoroBell(),
+        },
+        {
+          type: 'checkbox',
+          label: 'Show Timeline',
+          checked: pomodoroWindowOptions.showTimeline,
+          click: () => toggleTimeline(),
+        },
+        {
+          type: 'checkbox',
+          label: 'Always Show Menu',
+          checked: pomodoroWindowOptions.showMenuAlways,
+          click: () => togglePomodoroShowMenu(),
         },
         { type: 'separator' },
         { role: 'reload' },
@@ -473,18 +661,24 @@ function getMenuPomodoroTimer() {
 }
 
 async function openPomodoroTimerWindow() {
+  let configuration = await getConfiguration()
+  pomodoroWindowOptions = configuration.pomodoroOptions
   pomodoroWindow = await openWindow('pomodoroTimer', null, {
     skipTaskbar: true,
     title: 'Pomodoro Timer',
+    autoHideMenuBar: !pomodoroWindowOptions.showMenuAlways,
   })
   addPomodoroTickSubscriber((message)=>{
     pomodoroWindow.webContents.send('pomodoro-tick', message)
   })
+  console.log("Pomodoro window options")
+  console.log(pomodoroWindowOptions)
   let menuPomodoro = Menu.buildFromTemplate(getMenuPomodoroTimer())
   pomodoroWindow.setMenu(menuPomodoro)
   pomodoroWindow.on('close', () => {
     pomodoroWindow = null
   })
+  //pomodoroWindow.webContents.send('pomodoro-options', pomodoroWindowOptions)
 }
 
 //app.whenReady().then(createWindow)
@@ -505,8 +699,10 @@ app.on('activate', async () => {
         mainWindow.restore()
       }
     }
-    mainWindow.show()
-    mainWindow.focus()
+    if (mainWindow!=null){
+      mainWindow.show()
+      mainWindow.focus()
+    }
   }
 })
 
@@ -578,8 +774,82 @@ async function initHandlers(){
   ipcMain.on('store-on-global-cache', (event, kind, id, data) => {
     storeOnGlobalCache(kind, id, data)
   })
+  ipcMain.on('tm2000-add-new-empty-tab', () => {
+    console.log('tm2000-add-new-empty-tab')
+    let newTab = {
+      id: `tab_${tabCounter}`,
+      name: `tab_${tabCounter}`,
+      title: `New Tab ${tabCounter + 1}`,
+      active: true,
+      url: 'MainLayout',
+      isBoard: true,
+    }
+    tabCounter++
+    createTab(newTab)
+    const { view: _view, ...tabUI } = newTab
+    mainWindow.webContents.send('on-create-new-tab', tabUI)
+    refreshMenu()
+  })
+  ipcMain.on('tm2000-request-tab-list', () => {
+    console.log('tm2000-request-tab-list')
+    let allTabs = []
+    for (let tabKey of tabs.keys()) {
+      let tabFull = tabs.get(tabKey)
+      const { view: _view, ...tabUI } = tabFull
+      allTabs.push(tabUI)
+    }
+    mainWindow.webContents.send('on-restore-tabs', allTabs)
+  })
+  ipcMain.on('tm2000-open-task-in-tab', async (event, idTask, key, idBoard) => {
+    let newTab = {
+      id: `tab_${tabCounter}`,
+      name: `tab_${tabCounter}`,
+      title: `New Tab ${tabCounter + 1}`,
+      active: true,
+      url: `TaskInTab&idTask=${idTask}&idBoard=${idBoard}`,
+      isBoard: false,
+    }
+    tabCounter++
+    await createTab(newTab)
+    const { view: _view, ...tabUI } = newTab
+    mainWindow.webContents.send('on-create-new-tab', tabUI)
+    refreshMenu()
+  })
+
+  ipcMain.on('tm2000-board-tab-activated', (_event, tabId) => {
+    console.log(`tm2000-board-tab-activated(${tabId})`)
+    const activeView = tabs.get(activeTabId).view
+    activeView.webContents.send('set-right-drawer-tab', tabId)
+  })
+  ipcMain.on('tm2000-toggle-left-drawer', (_event) => {
+    const activeView = tabs.get(activeTabId).view
+    activeView.webContents.send('toggle-left-drawer')
+  })
+  ipcMain.on('tm2000-tab-activated', (_event, tabId) => {
+    console.log(`tm2000-tab-activated(${tabId})`)
+    switchToTab(tabId)
+  })
+  ipcMain.on('tm2000-removed-tab', (_event, tabId) => {
+    console.log('tm2000-removed-tab', tabId)
+    if (tabs.has(tabId)) {
+      tabs.delete(tabId)
+    }
+    refreshMenu()
+  })
+  ipcMain.on('tm2000-board-loaded', (_event, boardName) => {
+    console.log('tm2000-board-loaded', boardName)
+    mainWindow.webContents.send('tab-title-updated', activeTabId, boardName)
+    if (tabs.has(activeTabId)) {
+      let tab = tabs.get(activeTabId)
+      tab.title = boardName
+    }
+  })
   addPomodoroTickSubscriber((message)=>{
     mainWindow.webContents.send('pomodoro-tick', message)
+    for (let [_, tab] of tabs){
+      const view = tab.view
+      view.webContents.send('pomodoro-tick', message)
+    }
   })
   //await pomodoroRehydrate()
 }
@@ -588,6 +858,7 @@ app.whenReady().then(async () => {
   // if (process.platform === 'linux') {
   //   app.set (path.join(__dirname, 'icons/icon.png'))
   // }
+  activeTabId=null
   await initGRPC()
   await initHandlers()
   await createMainWindow()
@@ -610,48 +881,6 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
   }
 });
 
-// function taskWatcherStreamingCall(client, user) {
-//   return new Promise((resolve, reject) => {
-//     console.log('taskWatcherStreamingCall')
-//     const call = client.SubscribeTaskWatcher({user: user})
-//     call.on('data', async (updatedTask) => {
-//       console.log('Received updated task')
-//       console.log(updatedTask)
-//       //console.log(task)
-//       mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
-//     });
-//     call.on('status', status => {
-//       console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);
-//       resolve();
-//     });
-//     call.on('error', () => {
-//       // Ignore error event
-//     });
-//     //call.end();
-//   });
-// }
-//
-// function epicWatcherStreamingCall(client, user) {
-//   return new Promise((resolve, reject) => {
-//     console.log('epicWatcherStreamingCall')
-//     const call = client.SubscribeEpicWatcher({user: user})
-//     call.on('data', async (updatedEpic) => {
-//       console.log('Received updated epic')
-//       console.log(updatedEpic)
-//       //console.log(task)
-//       mainWindow.webContents.send('on-epic-update', updatedEpic.id_epic, updatedEpic.id_project, updatedEpic.op)
-//     });
-//     call.on('status', status => {
-//       console.log(`SubscribeEpicWatcher got = ${grpc.status[status.code]}`);
-//       resolve();
-//     });
-//     call.on('error', () => {
-//       // Ignore error event
-//     });
-//     //call.end();
-//   });
-// }
-
 function taskWatcherStreamingCall(client, user) {
   const MAX_DELAY = 30000
   let delay = 1000
@@ -669,7 +898,16 @@ function taskWatcherStreamingCall(client, user) {
       console.log('Received updated task')
       console.log(updatedTask)
       //console.log(task)
-      mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
+      //mainWindow.webContents.send('on-task-update', updatedTask.id_task, updatedTask.id_project, updatedTask.op)
+      for (let [_, tab] of tabs) {
+        const view = tab.view
+        view.webContents.send(
+          'on-task-update',
+          updatedTask.id_task,
+          updatedTask.id_project,
+          updatedTask.op,
+        )
+      }
     });
     call.on('error', status => {
       console.log(`SubscribeTaskWatcher got = ${grpc.status[status.code]}`);

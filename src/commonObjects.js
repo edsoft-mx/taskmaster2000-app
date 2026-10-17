@@ -39,18 +39,18 @@ class BoardProject {
     this.idProject= project.idProject
     this.name= project.name
     this.projectKey= project.projectKey
-    this.epics = []
-    this.epicMap = new Map()
+    //this.epics = []
+    // this.epicMap = new Map()
     this.tasks = []
     this.taskMap = new Map()
     projectMap.set(this.idProject, this)
   }
 
-  addEpic(epic) {
-    this.epics.push(epic)
-    this.epicMap.set(epic.idEpic, epic)
-    epicMap.set(epic.idEpic, epic)
-  }
+  // addEpic(epic) {
+  //   this.epics.push(epic)
+  //   this.epicMap.set(epic.idEpic, epic)
+  //   epicMap.set(epic.idEpic, epic)
+  // }
 
   addTask(task) {
     this.tasks.push(task)
@@ -193,6 +193,7 @@ class BoardTask {
     this.idTask= data.idTask
     this.initialState= data.initialState
     this.isExternal= data.isExternal
+    this.externalStatus = data.externalStatus
     this.key= data.key
     this.notes= data.notes
     this.priority= data.priority

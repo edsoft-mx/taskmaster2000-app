@@ -2,6 +2,7 @@
 import TMKanban from 'components/tmKanban.vue'
 import { ref, defineProps, inject } from 'vue'
 import TMTaskContainer from 'components/tmTaskContainer.vue'
+import TMMarkdown from 'components/tmMarkdown.vue'
 
 defineOptions({
   name: 'TMEpicContainer',
@@ -96,7 +97,7 @@ function getClasses() {
     <b>{{ epic.key }}</b> - {{ epic.title }} <span class="state">{{ epic.state }}</span>
     &nbsp;
     <button
-      @click="$emit('select', epic); toggleSuperTaskInfo()"
+      @click="$emit('select', epic);toggleSuperTaskInfo()"
       title="Show description"
       class="buttonTaskAction2"
       style="position: relative"
@@ -113,18 +114,7 @@ function getClasses() {
       <span class="material-icons-outlined material-icons">edit</span>
     </button>
     <div v-if="showDetails" class="summary">
-      <VueShowdown
-        :markdown="epicDetail()"
-        flavor="github"
-        :options="{
-          emoji: true,
-          headerLevelStart: 3,
-          tasklists: true,
-          openLinksInNewWindow: true,
-          moreStyling: true,
-        }"
-        @select="$emit('select', epic)"
-      />
+      <TMMarkdown :markdown="epicDetail()"  />
     </div>
 
     <TMKanban
